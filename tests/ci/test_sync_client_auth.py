@@ -49,7 +49,7 @@ class TestDeviceAuthClient:
 
 	async def test_init_creates_config_dir(self, temp_config_dir, httpserver):
 		"""Test that initialization creates config directory."""
-		auth = DeviceAuthClient(base_url=httpserver.url_for(''))
+		_auth = DeviceAuthClient(base_url=httpserver.url_for(''))
 		assert temp_config_dir.exists()
 		assert (temp_config_dir / 'cloud_auth.json').exists() is False
 

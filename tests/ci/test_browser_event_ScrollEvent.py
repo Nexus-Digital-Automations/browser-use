@@ -362,7 +362,7 @@ class TestScrollActions:
 			params={'expression': 'window.pageYOffset', 'returnByValue': True},
 			session_id=cdp_session.session_id,
 		)
-		main_y = main_scroll.get('result', {}).get('value', 0)
+		_main_y = main_scroll.get('result', {}).get('value', 0)
 
 		# Check iframe scroll (should start at 0)
 		iframe_initial = await browser_session.cdp_client.send.Runtime.evaluate(

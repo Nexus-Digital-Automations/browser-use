@@ -148,7 +148,7 @@ class TestTabManagement:
 	async def test_agent_changes_tab(self, browser_session: BrowserSession, base_url):
 		"""Test that page changes and page remains the same when a new tab is opened."""
 
-		initial_tab = await self._reset_tab_state(browser_session, base_url)
+		_initial_tab = await self._reset_tab_state(browser_session, base_url)
 		event = browser_session.event_bus.dispatch(NavigateToUrlEvent(url=f'{base_url}/page1'))
 		await event
 		await event.event_result(raise_if_any=True, raise_if_none=False)

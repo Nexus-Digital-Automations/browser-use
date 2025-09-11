@@ -36,7 +36,7 @@ async def main():
 
 	# Run all agents in parallel
 	tasks = [agent.run() for agent in agents]
-	results = await asyncio.gather(*tasks, return_exceptions=True)
+	_results = await asyncio.gather(*tasks, return_exceptions=True)
 
 	print('🎉 All agents completed!')
 

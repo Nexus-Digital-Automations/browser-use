@@ -284,10 +284,10 @@ class DomService:
 
 		# Wait for the page to be ready first
 		try:
-			ready_state = await cdp_session.cdp_client.send.Runtime.evaluate(
+			_ready_state = await cdp_session.cdp_client.send.Runtime.evaluate(
 				params={'expression': 'document.readyState'}, session_id=cdp_session.session_id
 			)
-		except Exception as e:
+		except Exception as _e:
 			pass  # Page might not be ready yet
 		# DEBUG: Log before capturing snapshot
 		self.logger.debug(f'🔍 DEBUG: Capturing DOM snapshot for target {target_id}')

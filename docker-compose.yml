@@ -1,0 +1,272 @@
+# Browser-Use Local Deployment - Standalone Configuration
+# 100% Local-Only Architecture with Chrome/Chromium Support
+# Compatible with AIgent/Bytebot ecosystem
+
+name: browser-use
+
+services:
+  browser-use:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - TARGETPLATFORM=linux/amd64
+    image: browser-use:local
+    container_name: browser-use
+    restart: unless-stopped
+    hostname: browser-use-host
+    
+    # Security configuration for local deployment
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+    
+    # Shared memory configuration for Chrome
+    shm_size: "2gb"
+    
+    # Port exposures for local access
+    ports:
+      - "9242:9242"  # Browser-use main service port
+      - "9222:9222"  # Chrome DevTools Protocol (CDP) port
+      - "5900:5900"  # VNC port for browser visualization (optional)
+    
+    # Environment configuration for local deployment
+    environment:
+      # Core browser-use configuration
+      - BROWSERUSE_USER=browseruse
+      - DATA_DIR=/data
+      - VENV_DIR=/app/.venv
+      - PATH=/app/.venv/bin:/usr/local/bin:/usr/bin:/bin
+      
+      # Local deployment specific settings
+      - LOCAL_DEPLOYMENT=true
+      - LOCAL_DATA_DIRECTORY=/data
+      - LOCAL_CHROME_BINARY=/usr/bin/chromium-browser
+      
+      # Chrome/Chromium configuration
+      - DISPLAY=:99
+      - CHROME_FLAGS=--no-sandbox --disable-dev-shm-usage --disable-gpu --remote-debugging-address=0.0.0.0 --remote-debugging-port=9222
+      
+      # AI API Configuration (local environment variables)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      
+      # Local networking and security
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - TZ=UTC
+      
+      # Browser automation settings
+      - BROWSER_USE_HEADLESS=false
+      - BROWSER_USE_SANDBOX=false
+      - BROWSER_USE_DEBUG=false
+      
+    # Local volume mounts for data persistence
+    volumes:
+      # Data persistence
+      - browser_use_data:/data:rw
+      - browser_use_profiles:/data/profiles:rw
+      - browser_use_downloads:/data/downloads:rw
+      
+      # Configuration and secrets (local file-based)
+      - ./config:/app/config:ro
+      - ./secrets:/app/secrets:ro
+      
+      # Logs for local monitoring
+      - browser_use_logs:/app/logs:rw
+      
+      # Chrome user data directory
+      - browser_use_chrome_data:/home/browseruse/.config/chromium:rw
+      
+      # Local cache and temporary files
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    
+    # Health check for service monitoring
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9242/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Resource limits for local deployment
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    
+    # Networking
+    networks:
+      - browser-use-network
+    
+    # Service dependencies
+    depends_on:
+      xvfb:
+        condition: service_healthy
+
+  # X Virtual Framebuffer for headless browser support
+  xvfb:
+    image: selenoid/vnc:firefox_78.0
+    container_name: browser-use-xvfb
+    restart: unless-stopped
+    environment:
+      - DISPLAY=:99
+    ports:
+      - "5900:5900"  # VNC access port
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    command: >
+      bash -c "
+        Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
+        x11vnc -display :99 -nopw -listen localhost -xkb -rfbport 5900 -forever -shared &
+        wait
+      "
+    healthcheck:
+      test: ["CMD", "xset", "-display", ":99", "q"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - browser-use-network
+
+  # Local PostgreSQL database (optional, for data persistence)
+  postgres:
+    image: postgres:16-alpine
+    container_name: browser-use-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=browseruse
+      - POSTGRES_USER=browseruse
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-browseruse_local_password}
+    volumes:
+      - browser_use_postgres_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts with bytebot
+    networks:
+      - browser-use-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U browseruse -d browseruse"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Local Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: browser-use-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-browseruse_redis_password}
+    volumes:
+      - browser_use_redis_data:/data
+    ports:
+      - "6380:6379"  # Different port to avoid conflicts
+    networks:
+      - browser-use-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Local monitoring with Prometheus (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: browser-use-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - browser_use_prometheus_data:/prometheus
+    networks:
+      - browser-use-network
+
+  # Local Grafana dashboard (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: browser-use-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - browser_use_grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - browser-use-network
+    depends_on:
+      - prometheus
+
+# Network configuration for local deployment
+networks:
+  browser-use-network:
+    driver: bridge
+    name: browser-use-local
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Local volume definitions for data persistence
+volumes:
+  browser_use_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./data
+      o: bind
+  
+  browser_use_profiles:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./data/profiles
+      o: bind
+  
+  browser_use_downloads:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./data/downloads
+      o: bind
+  
+  browser_use_logs:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./logs
+      o: bind
+  
+  browser_use_chrome_data:
+    driver: local
+  
+  browser_use_postgres_data:
+    driver: local
+  
+  browser_use_redis_data:
+    driver: local
+  
+  browser_use_prometheus_data:
+    driver: local
+  
+  browser_use_grafana_data:
+    driver: local

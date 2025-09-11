@@ -1116,7 +1116,7 @@ class BrowserUseApp(App):
 					self.browser_session = browser_session
 
 				# Get basic browser info from browser_profile
-				browser_type = 'Chromium'
+				_browser_type = 'Chromium'
 				headless = browser_session.browser_profile.headless
 
 				# Determine connection type based on config
@@ -1243,7 +1243,7 @@ class BrowserUseApp(App):
 
 		if self.agent:
 			# Check if agent has tasks
-			task_history = []
+			_task_history = []
 			message_history = []
 
 			# Try to extract tasks by looking at message history
@@ -1315,7 +1315,7 @@ class BrowserUseApp(App):
 						if item.model_output and item.model_output.action:
 							tasks_info.write('   [purple]Actions:[/]')
 							for action_idx, action in enumerate(item.model_output.action, 1):
-								action_type = action.__class__.__name__
+								_action_type = action.__class__.__name__
 								if hasattr(action, 'model_dump'):
 									# For proper actions, show the action type
 									action_dict = action.model_dump(exclude_unset=True)

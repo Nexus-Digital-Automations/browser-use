@@ -1,0 +1,108 @@
+# Browser-Use Local Configuration
+# 100% Local-Only Deployment Settings
+
+app:
+  name: "browser-use-local"
+  version: "0.7.4"
+  debug: false
+  
+server:
+  host: "0.0.0.0"
+  port: 9242
+  workers: 1
+  
+browser:
+  executable_path: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  headless: false
+  sandbox: false
+  args:
+    - "--no-sandbox"
+    - "--disable-dev-shm-usage"
+    - "--disable-gpu"
+    - "--remote-debugging-address=0.0.0.0"
+    - "--remote-debugging-port=9222"
+    - "--disable-background-timer-throttling"
+    - "--disable-renderer-backgrounding"
+    - "--disable-features=TranslateUI"
+    - "--disable-ipc-flooding-protection"
+    - "--disable-web-security"
+    - "--allow-running-insecure-content"
+  
+  profiles:
+    default_profile: "default"
+    profiles_directory: "/data/profiles"
+  
+  downloads:
+    directory: "/data/downloads"
+    wait_for_downloads: true
+  
+  timeouts:
+    page_load: 30000
+    navigation: 30000
+    element_wait: 10000
+
+ai:
+  providers:
+    anthropic:
+      enabled: true
+      model: "claude-3-5-sonnet-20241022"
+      max_tokens: 8192
+    openai:
+      enabled: true
+      model: "gpt-4o"
+      max_tokens: 4096
+    gemini:
+      enabled: true
+      model: "gemini-1.5-pro"
+      max_tokens: 8192
+    groq:
+      enabled: true
+      model: "llama-3.1-70b-versatile"
+      max_tokens: 8192
+  
+  default_provider: "anthropic"
+  
+logging:
+  level: "INFO"
+  format: "json"
+  file: "/app/logs/browser-use.log"
+  max_size: "10MB"
+  backup_count: 5
+
+security:
+  allowed_origins:
+    - "http://localhost:*"
+    - "http://127.0.0.1:*"
+    - "http://bytebot-agent:9991"
+    - "http://bytebot-ui:9992"
+  
+  rate_limiting:
+    enabled: true
+    max_requests: 100
+    window_seconds: 60
+
+data:
+  storage_directory: "/data"
+  max_storage_size: "10GB"
+  cleanup_interval: "24h"
+
+integrations:
+  bytebot:
+    enabled: true
+    agent_url: "http://bytebot-agent:9991"
+    ui_url: "http://bytebot-ui:9992"
+  
+  mcp:
+    enabled: true
+    server_port: 8100
+    
+monitoring:
+  metrics:
+    enabled: true
+    port: 9243
+    path: "/metrics"
+  
+  health_check:
+    enabled: true
+    path: "/health"
+    interval: 30

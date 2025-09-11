@@ -752,7 +752,7 @@ You will be given a query and the markdown of a webpage that has been filtered t
 				msg = f'🔍  {memory}'
 				logger.info(msg)
 				return ActionResult(extracted_content=memory, long_term_memory=memory)
-			except Exception as e:
+			except Exception as _e:
 				# Text not found
 				msg = f"Text '{text}' not found or not visible on page"
 				logger.info(msg)

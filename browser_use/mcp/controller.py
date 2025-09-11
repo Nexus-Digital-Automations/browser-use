@@ -127,7 +127,7 @@ class MCPToolWrapper:
 		param_model = create_model(f'{tool_name}_Params', **param_fields) if param_fields else None
 
 		# Determine if this is a browser-specific tool
-		is_browser_tool = tool_name.startswith('browser_')
+		_is_browser_tool = tool_name.startswith('browser_')
 		domains = None
 		# Note: page_filter has been removed since we no longer use Page objects
 
@@ -191,7 +191,7 @@ class MCPToolWrapper:
 		description = tool.description or f'MCP tool: {tool_name}'
 
 		# Use the decorator to register the action
-		decorated_wrapper = self.registry.action(description=description, param_model=param_model, domains=domains)(
+		_decorated_wrapper = self.registry.action(description=description, param_model=param_model, domains=domains)(
 			mcp_action_wrapper
 		)
 

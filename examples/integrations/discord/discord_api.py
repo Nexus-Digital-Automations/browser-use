@@ -69,7 +69,7 @@ class DiscordBot(commands.Bot):
 		"""Called when the bot is ready."""
 		try:
 			print(f'We have logged in as {self.user}')
-			cmds = await self.tree.sync()  # Sync the command tree with discord
+			_cmds = await self.tree.sync()  # Sync the command tree with discord
 
 		except Exception as e:
 			print(f'Error during bot startup: {e}')

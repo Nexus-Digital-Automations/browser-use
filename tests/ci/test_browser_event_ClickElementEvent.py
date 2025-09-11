@@ -178,7 +178,7 @@ class TestClickElementEvent:
 			click_element_by_index: ClickElementAction | None = None
 
 		# Execute the action with the button index
-		result = await tools.act(
+		_result = await tools.act(
 			ClickElementActionModel(click_element_by_index=ClickElementAction(index=button_index)), browser_session
 		)
 
@@ -255,7 +255,7 @@ class TestClickElementEvent:
 		class ClickActionModel(ActionModel):
 			click_element_by_index: ClickElementAction | None = None
 
-		result = await tools.act(ClickActionModel(**click_action), browser_session)
+		_result = await tools.act(ClickActionModel(**click_action), browser_session)
 		await asyncio.sleep(1)  # Wait for new tab to open
 
 		# Verify the result
@@ -340,7 +340,7 @@ class TestClickElementEvent:
 		class ClickActionModel(ActionModel):
 			click_element_by_index: ClickElementAction | None = None
 
-		result = await tools.act(ClickActionModel(**click_action_normal), browser_session)
+		_result = await tools.act(ClickActionModel(**click_action_normal), browser_session)
 		await asyncio.sleep(1)
 
 		# Should still have same number of tabs
@@ -353,7 +353,7 @@ class TestClickElementEvent:
 
 		# Test new tab click (while_holding_ctrl=True) - should open in new background tab
 		click_action_new_tab = {'click_element_by_index': ClickElementAction(index=link_indices[1], while_holding_ctrl=True)}
-		result = await tools.act(ClickActionModel(**click_action_new_tab), browser_session)
+		__result = await tools.act(ClickActionModel(**click_action_new_tab), browser_session)
 		await asyncio.sleep(1)
 
 		# Should have one more tab
@@ -426,7 +426,7 @@ class TestClickElementEvent:
 		class ClickActionModel(ActionModel):
 			click_element_by_index: ClickElementAction | None = None
 
-		result = await tools.act(ClickActionModel(click_element_by_index=ClickElementAction(index=inline_index)), browser_session)
+		_result = await tools.act(ClickActionModel(click_element_by_index=ClickElementAction(index=inline_index)), browser_session)
 
 		assert result.error is None, f'Click failed: {result.error}'
 
@@ -508,7 +508,7 @@ class TestClickElementEvent:
 		class ClickActionModel(ActionModel):
 			click_element_by_index: ClickElementAction | None = None
 
-		result = await tools.act(ClickActionModel(click_element_by_index=ClickElementAction(index=block_index)), browser_session)
+		_result = await tools.act(ClickActionModel(click_element_by_index=ClickElementAction(index=block_index)), browser_session)
 
 		assert result.error is None, f'Click failed: {result.error}'
 
@@ -596,7 +596,7 @@ class TestClickElementEvent:
 		class ClickActionModel(ActionModel):
 			click_element_by_index: ClickElementAction | None = None
 
-		result = await tools.act(ClickActionModel(click_element_by_index=ClickElementAction(index=target_index)), browser_session)
+		_result = await tools.act(ClickActionModel(click_element_by_index=ClickElementAction(index=target_index)), browser_session)
 
 		assert result.error is None, f'Click failed: {result.error}'
 
@@ -657,7 +657,7 @@ class TestClickElementEvent:
 		class ClickActionModel(ActionModel):
 			click_element_by_index: ClickElementAction | None = None
 
-		result = await tools.act(
+		_result = await tools.act(
 			ClickActionModel(click_element_by_index=ClickElementAction(index=file_input_index)), browser_session
 		)
 
@@ -719,7 +719,7 @@ class TestClickElementEvent:
 		class ClickActionModel(ActionModel):
 			click_element_by_index: ClickElementAction | None = None
 
-		result = await tools.act(ClickActionModel(click_element_by_index=ClickElementAction(index=select_index)), browser_session)
+		_result = await tools.act(ClickActionModel(click_element_by_index=ClickElementAction(index=select_index)), browser_session)
 
 		# Should automatically provide dropdown options instead of an error
 		assert result.error is None, 'Should not have error - should provide dropdown options automatically'
@@ -1129,7 +1129,7 @@ class TestClickElementEvent:
 				file_system = FileSystem(base_dir=temp_dir)
 
 				# Upload the file using the label index (should find the associated file input)
-				result = await tools.act(
+				_result = await tools.act(
 					UploadFileActionModel(upload_file_to_element=UploadFileAction(index=label_index, path=temp_file_path)),
 					browser_session,
 					available_file_paths=[temp_file_path],  # Pass the file path as available
@@ -1248,7 +1248,7 @@ class TestClickElementEvent:
 			from browser_use.browser.events import BrowserStateRequestEvent
 
 			event = browser_session.event_bus.dispatch(BrowserStateRequestEvent())
-			state = await event
+			_state = await event
 
 			# Test 1: Try to upload a file that's not in available_file_paths - should fail
 			class UploadActionModel(ActionModel):
@@ -1262,7 +1262,7 @@ class TestClickElementEvent:
 
 				try:
 					# This should fail because the file is not in available_file_paths
-					result = await tools.act(
+					_result = await tools.act(
 						upload_action,
 						browser_session,
 						available_file_paths=[],  # Empty available_file_paths
@@ -1274,7 +1274,7 @@ class TestClickElementEvent:
 					assert 'not available' in str(e), f'Error should mention file not available: {e}'
 
 				# Test 2: Add file to available_file_paths - should succeed
-				result = await tools.act(
+				_result = await tools.act(
 					upload_action,
 					browser_session,
 					available_file_paths=[test_file_path],  # File is now in available_file_paths
@@ -1284,12 +1284,12 @@ class TestClickElementEvent:
 
 				# Test 3: Test with FileSystem integration - write a test file to the FileSystem
 				await file_system.write_file('test.txt', 'FileSystem test content')
-				fs_file_path = str(file_system.get_dir() / 'test.txt')
+				_fs_file_path = str(file_system.get_dir() / 'test.txt')
 
 				# Try to upload using just the filename (should check FileSystem)
 				upload_action_fs = UploadActionModel(upload_file_to_element=UploadFileAction(index=1, path='test.txt'))
 
-				result = await tools.act(
+				_result = await tools.act(
 					upload_action_fs,
 					browser_session,
 					available_file_paths=[],  # Empty available_file_paths
@@ -1302,7 +1302,7 @@ class TestClickElementEvent:
 				browser_session._downloaded_files.append(test_file_path)
 
 				# Try uploading with the file only in downloaded_files
-				result = await tools.act(
+				_result = await tools.act(
 					upload_action,
 					browser_session,
 					available_file_paths=[],  # Empty available_file_paths, but file is in downloaded_files

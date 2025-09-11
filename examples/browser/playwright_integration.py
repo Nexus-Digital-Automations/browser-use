@@ -290,7 +290,7 @@ async def playwright_get_text(params: PlaywrightGetTextAction, browser_session: 
 				'is_visible': is_visible,
 			}
 
-		success_msg = f'✅ Extracted text using Playwright: {result_data}'
+		_success_msg = f'✅ Extracted text using Playwright: {result_data}'
 
 		return ActionResult(
 			extracted_content=str(result_data),

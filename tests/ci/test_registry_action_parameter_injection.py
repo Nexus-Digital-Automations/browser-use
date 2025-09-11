@@ -160,7 +160,7 @@ class TestBrowserContext:
 
 		# Get the current page info before refresh
 		url_before = await browser_session.get_current_page_url()
-		title_before = await browser_session.get_current_page_title()
+		_title_before = await browser_session.get_current_page_title()
 
 		# Refresh the page
 		await browser_session.refresh()

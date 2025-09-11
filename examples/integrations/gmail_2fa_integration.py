@@ -259,7 +259,7 @@ async def main():
 	agent = Agent(task='Get recent emails from Gmail to test the integration is working properly', llm=llm, tools=tools)
 
 	try:
-		history = await agent.run()
+		_history = await agent.run()
 		print('✅ Gmail email retrieval test completed')
 	except Exception as e:
 		print(f'❌ Gmail email retrieval test failed: {e}')
@@ -268,7 +268,7 @@ async def main():
 		recovery_success = await grant_manager.handle_authentication_failure(gmail_service, str(e))
 		if recovery_success:
 			print('✅ Recovery successful, re-running test...')
-			history = await agent.run()
+			__history = await agent.run()
 		else:
 			print('❌ Final recovery failed. Please check your Gmail API setup.')
 			return
@@ -284,7 +284,7 @@ async def main():
 		tools=tools,
 	)
 
-	history2 = await agent2.run()
+	_history2 = await agent2.run()
 	print('✅ 2FA code search completed')
 
 	print('\n' + '=' * 60)
@@ -308,7 +308,7 @@ async def main():
 		tools=tools,
 	)
 
-	history3 = await agent3.run()
+	_history3 = await agent3.run()
 	print('✅ Complete 2FA flow demonstration completed')
 
 	print('\n' + '=' * 60)

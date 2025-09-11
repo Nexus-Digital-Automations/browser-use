@@ -293,7 +293,7 @@ class MCPClient:
 			param_model = None
 
 		# Determine if this is a browser-specific tool
-		is_browser_tool = tool.name.startswith('browser_') or 'page' in tool.name.lower()
+		_is_browser_tool = tool.name.startswith('browser_') or 'page' in tool.name.lower()
 
 		# Set up action filters
 		domains = None

@@ -285,7 +285,7 @@ class FileSystem:
 				return f"Error: File '{full_filename}' not found."
 			except PermissionError:
 				return f"Error: Permission denied to read file '{full_filename}'."
-			except Exception as e:
+			except Exception as _e:
 				return f"Error: Could not read file '{full_filename}'."
 
 		if not self._is_valid_filename(full_filename):

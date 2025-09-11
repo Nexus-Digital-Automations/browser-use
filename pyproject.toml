@@ -73,7 +73,7 @@ examples = [
     "botocore>=1.37.23",
     "imgcat>=0.6.0",
     # "stagehand-py>=0.3.6",
-    # "browserbase>=0.4.0",
+    "browserbase>=1.4.0",
     "langchain-openai>=0.3.26",
 ]
 eval = [

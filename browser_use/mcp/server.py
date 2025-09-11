@@ -778,7 +778,7 @@ class BrowserUseServer:
 		if not self.tools:
 			return 'Error: Tools not initialized'
 
-		state = await self.browser_session.get_browser_state_summary()
+		_state = await self.browser_session.get_browser_state_summary()
 
 		# Use the extract_structured_data action
 		# Create a dynamic action model that matches the tools's expectations

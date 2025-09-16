@@ -42,6 +42,8 @@ def _patched_del(self):
 
 base_subprocess.BaseSubprocessTransport.__del__ = _patched_del
 
+# Version information
+__version__ = "0.7.4"
 
 # Type stubs for lazy imports - fixes linter warnings
 if TYPE_CHECKING:

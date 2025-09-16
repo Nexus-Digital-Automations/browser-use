@@ -18,7 +18,6 @@ Version: 1.0.0
 """
 
 import asyncio
-import json
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -1101,8 +1100,8 @@ class SessionManager:
             return
 
         try:
-            with open(sessions_file, "r") as f:
-                session_data = json.load(f)
+            # Use asyncio.to_thread to run blocking I/O in thread executor
+            session_data = await asyncio.to_thread(self._load_json_file, sessions_file)
 
             for session_dict in session_data:
                 # Only restore sessions that were active
@@ -1147,8 +1146,8 @@ class SessionManager:
                 },
             }
 
-            with open(stats_file, "w") as f:
-                json.dump(stats_data, f, indent=2)
+            # Use asyncio.to_thread to run blocking I/O in thread executor
+            await asyncio.to_thread(self._save_json_file, stats_file, stats_data)
 
         except Exception as error:
             self.logger.error(f"Failed to save session statistics: {error}")
@@ -1230,6 +1229,20 @@ class SessionManager:
             completed_tasks=set(session_data.get("completed_tasks", [])),
             metadata=session_data.get("metadata", {}),
         )
+
+    def _load_json_file(self, file_path: Path) -> List[Dict[str, Any]]:
+        """Helper method to load JSON data from file (runs in thread executor)"""
+        import json
+
+        with open(file_path, "r") as f:
+            return json.load(f)
+
+    def _save_json_file(self, file_path: Path, data: Dict[str, Any]) -> None:
+        """Helper method to save JSON data to file (runs in thread executor)"""
+        import json
+
+        with open(file_path, "w") as f:
+            json.dump(data, f, indent=2)
 
     def _generate_operation_id(self) -> str:
         """Generate unique operation ID for tracking"""

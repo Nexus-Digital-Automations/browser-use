@@ -18,7 +18,6 @@ Version: 1.0.0
 """
 
 import asyncio
-import json
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -1051,8 +1050,8 @@ class TaskQueueManager:
             return
 
         try:
-            with open(tasks_file, "r") as f:
-                task_data = json.load(f)
+            # Use asyncio.to_thread to run blocking I/O in thread executor
+            task_data = await asyncio.to_thread(self._load_json_file, tasks_file)
 
             for task_dict in task_data:
                 # Reconstruct task object
@@ -1099,8 +1098,8 @@ class TaskQueueManager:
         try:
             task_data = [self._serialize_task(task) for task in self.tasks.values()]
 
-            with open(tasks_file, "w") as f:
-                json.dump(task_data, f, indent=2)
+            # Use asyncio.to_thread to run blocking I/O in thread executor
+            await asyncio.to_thread(self._save_json_file, tasks_file, task_data)
 
             self.logger.debug(f"Persisted {len(task_data)} tasks")
 
@@ -1127,8 +1126,8 @@ class TaskQueueManager:
                 "final_queue_size": len(self.tasks),
             }
 
-            with open(stats_file, "w") as f:
-                json.dump(stats_data, f, indent=2)
+            # Use asyncio.to_thread to run blocking I/O in thread executor
+            await asyncio.to_thread(self._save_json_file, stats_file, stats_data)
 
         except Exception as error:
             self.logger.error(f"Failed to save statistics: {error}")
@@ -1246,6 +1245,20 @@ class TaskQueueManager:
             result_data=task_data["result_data"],
             error_info=task_data["error_info"],
         )
+
+    def _load_json_file(self, file_path: Path) -> List[Dict[str, Any]]:
+        """Helper method to load JSON data from file (runs in thread executor)"""
+        import json
+
+        with open(file_path, "r") as f:
+            return json.load(f)
+
+    def _save_json_file(self, file_path: Path, data: List[Dict[str, Any]]) -> None:
+        """Helper method to save JSON data to file (runs in thread executor)"""
+        import json
+
+        with open(file_path, "w") as f:
+            json.dump(data, f, indent=2)
 
     def _generate_operation_id(self) -> str:
         """Generate unique operation ID for tracking"""

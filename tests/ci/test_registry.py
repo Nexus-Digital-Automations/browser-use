@@ -616,7 +616,7 @@ class TestExistingToolsActions:
         assert "Clicked element: 42" in result2.extracted_content
 
         # Test InputTextAction
-        _result3 = await registry.execute_action(
+        result3 = await registry.execute_action(
             "test_input",
             {"index": 5, "text": "test input"},
             browser_session=browser_session,

@@ -660,7 +660,7 @@ class DefaultActionWatchdog(BaseWatchdog):
                 await asyncio.sleep(0.018)
 
         except Exception as _e:
-            raise Exception(f"Failed to type to page: {str(e)}")
+            raise Exception(f"Failed to type to page: {str(_e)}")
 
     def _get_char_modifiers_and_vk(self, char: str) -> tuple[int, int, str]:
         """Get modifiers, virtual key code, and base key for a character.

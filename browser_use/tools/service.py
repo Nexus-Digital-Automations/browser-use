@@ -32,6 +32,9 @@ from browser_use.filesystem.file_system import FileSystem
 from browser_use.llm.base import BaseChatModel
 from browser_use.llm.messages import SystemMessage, UserMessage
 from browser_use.observability import observe_debug
+
+# Parlant Integration - Import validation functions
+from browser_use.parlant_validated_functions import enhance_tools_with_parlant
 from browser_use.tools.registry.service import Registry
 from browser_use.tools.views import (
 	ClickElementAction,
@@ -80,6 +83,7 @@ def handle_browser_error(e: BrowserError) -> ActionResult:
 	raise e
 
 
+@enhance_tools_with_parlant
 class Tools(Generic[Context]):
 	def __init__(
 		self,

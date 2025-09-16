@@ -60,6 +60,15 @@ from browser_use.config import CONFIG
 from browser_use.dom.views import DOMInteractedElement
 from browser_use.filesystem.file_system import FileSystem
 from browser_use.observability import observe, observe_debug
+
+# Parlant Integration - Import validation functions
+from browser_use.parlant_integration import get_parlant_service
+
+# Parlant Integration - Import validation functions
+from browser_use.parlant_validated_functions import (
+	ParlantValidatedBrowserUse,
+	enhance_agent_with_parlant,
+)
 from browser_use.sync import CloudSync
 from browser_use.telemetry.service import ProductTelemetry
 from browser_use.telemetry.views import AgentTelemetryEvent
@@ -123,7 +132,8 @@ Context = TypeVar('Context')
 AgentHookFunc = Callable[['Agent'], Awaitable[None]]
 
 
-class Agent(Generic[Context, AgentStructuredOutput]):
+@enhance_agent_with_parlant
+class Agent(Generic[Context, AgentStructuredOutput], ParlantValidatedBrowserUse):
 	@time_execution_sync('--init')
 	def __init__(
 		self,
@@ -441,6 +451,15 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		# Event-based pause control (kept out of AgentState for serialization)
 		self._external_pause_event = asyncio.Event()
 		self._external_pause_event.set()
+
+		# Parlant Integration - Initialize conversational AI validation
+		super().__init__(task=task)
+		self.logger.info("Agent initialized with Parlant conversational AI validation", extra={
+			'task': task,
+			'task_id': self.task_id,
+			'session_id': self.session_id,
+			'parlant_enabled': get_parlant_service().PARLANT_ENABLED
+		})
 
 	@property
 	def logger(self) -> logging.Logger:

@@ -559,6 +559,10 @@ class BrowserProfile(BrowserConnectArgs, BrowserLaunchPersistentContextArgs, Bro
 		default=None,
 		description='List of allowed domains for navigation e.g. ["*.google.com", "https://example.com", "chrome-extension://*"]',
 	)
+	prohibited_domains: list[str] | None = Field(
+		default=None,
+		description='List of prohibited domains for navigation e.g. ["*.google.com", "https://example.com", "chrome-extension://*"]. Allowed domains take precedence over prohibited domains.',
+	)
 	keep_alive: bool | None = Field(default=None, description='Keep browser alive after agent run.')
 
 	# --- Proxy settings ---
@@ -590,6 +594,15 @@ class BrowserProfile(BrowserConnectArgs, BrowserLaunchPersistentContextArgs, Bro
 		default=True,
 		description='Enable cross-origin iframe support (OOPIF/Out-of-Process iframes). When False, only same-origin frames are processed to avoid complexity and hanging.',
 	)
+	max_iframes: int = Field(
+		default=100,
+		description='Maximum number of iframe documents to process to prevent crashes.',
+	)
+	max_iframe_depth: int = Field(
+		ge=0,
+		default=5,
+		description='Maximum depth for cross-origin iframe recursion (default: 5 levels deep).',
+	)
 
 	# --- Page load/wait timings ---
 
@@ -604,6 +617,7 @@ class BrowserProfile(BrowserConnectArgs, BrowserLaunchPersistentContextArgs, Bro
 	filter_highlight_ids: bool = Field(
 		default=True, description='Only show element IDs in highlights if llm_representation is less than 10 characters.'
 	)
+	paint_order_filtering: bool = Field(default=True, description='Enable paint order filtering. Slightly experimental.')
 
 	# --- Downloads ---
 	auto_download_pdfs: bool = Field(default=True, description='Automatically download PDFs when navigating to PDF viewer pages.')

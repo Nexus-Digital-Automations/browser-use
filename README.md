@@ -1,353 +1,266 @@
-# Browser-Use Local Deployment with Docker Compose
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./static/browser-use-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="./static/browser-use.png">
+  <img alt="Shows a black Browser Use Logo in light color mode and a white one in dark color mode." src="./static/browser-use.png"  width="full">
+</picture>
 
-Complete Docker Compose configuration for browser-use local deployment with 100% local-only architecture, Chrome/Chromium support, and AIgent/Bytebot integration.
+<h1 align="center">Enable AI to control your browser 🤖</h1>
 
-## 🚀 Quick Start
+[![GitHub stars](https://img.shields.io/github/stars/gregpr07/browser-use?style=social)](https://github.com/gregpr07/browser-use/stargazers)
+[![Discord](https://img.shields.io/discord/1303749220842340412?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://link.browser-use.com/discord)
+[![Cloud](https://img.shields.io/badge/Cloud-☁️-blue)](https://cloud.browser-use.com)
+[![Documentation](https://img.shields.io/badge/Documentation-📕-blue)](https://docs.browser-use.com)
+[![Twitter Follow](https://img.shields.io/twitter/follow/Gregor?style=social)](https://x.com/intent/user?screen_name=gregpr07)
+[![Twitter Follow](https://img.shields.io/twitter/follow/Magnus?style=social)](https://x.com/intent/user?screen_name=mamagnus00)
+[![Weave Badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fapp.workweave.ai%2Fapi%2Frepository%2Fbadge%2Forg_T5Pvn3UBswTHIsN1dWS3voPg%2F881458615&labelColor=#EC6341)](https://app.workweave.ai/reports/repository/org_T5Pvn3UBswTHIsN1dWS3voPg/881458615)
 
-### Prerequisites
+<!-- Keep these links. Translations will automatically update with the README. -->
+[Deutsch](https://www.readme-i18n.com/browser-use/browser-use?lang=de) | 
+[Español](https://www.readme-i18n.com/browser-use/browser-use?lang=es) | 
+[français](https://www.readme-i18n.com/browser-use/browser-use?lang=fr) | 
+[日本語](https://www.readme-i18n.com/browser-use/browser-use?lang=ja) | 
+[한국어](https://www.readme-i18n.com/browser-use/browser-use?lang=ko) | 
+[Português](https://www.readme-i18n.com/browser-use/browser-use?lang=pt) | 
+[Русский](https://www.readme-i18n.com/browser-use/browser-use?lang=ru) | 
+[中文](https://www.readme-i18n.com/browser-use/browser-use?lang=zh)
 
-- Docker Engine 20.10+
-- Docker Compose 2.0+
-- 4GB+ RAM available
-- Port availability: 9242, 9222, 5900, 5432, 6379, 9090, 3000
+🌤️ Want to skip the setup? Use our <b>[cloud](https://cloud.browser-use.com)</b> for faster, scalable, stealth-enabled browser automation!
 
-### Basic Deployment
+**🚀 Use the latest version!** 
 
-1. **Clone and Configure**
-   ```bash
-   cd browser-use/
-   cp .env.example .env
-   # Edit .env with your API keys and configuration
-   ```
+> We ship every day improvements for **speed**, **accuracy**, and **UX**. 
+> ```bash
+> uv pip install --upgrade browser-use
+> ```
 
-2. **Start Services**
-   ```bash
-   # Standalone browser-use deployment
-   docker-compose up -d
-   
-   # Or integrated with Bytebot platform
-   cd ..
-   docker-compose -f docker-compose.integrated.yml up -d
-   ```
+# 🤖 Quickstart
 
-3. **Access Services**
-   - Browser-Use API: http://localhost:9242
-   - Chrome DevTools: http://localhost:9222
-   - VNC Browser View: http://localhost:5900 (password: browseruse)
-   - Prometheus Metrics: http://localhost:9090
-   - Grafana Dashboards: http://localhost:3000 (admin/admin)
-
-## 📋 Architecture Overview
-
-### Standalone Configuration (`docker-compose.yml`)
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Browser-Use   │    │      XVFB       │    │   PostgreSQL    │
-│   Main Service  │◄──►│  Display Server │    │    Database     │
-│   Port: 9242    │    │   Port: 5900    │    │   Port: 5433    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                                              │
-         ▼                                              ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│     Chrome      │    │     Redis       │    │   Prometheus    │
-│ DevTools (CDP)  │    │     Cache       │    │   Monitoring    │
-│   Port: 9222    │    │   Port: 6380    │    │   Port: 9090    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                                        │
-                                                        ▼
-                                               ┌─────────────────┐
-                                               │     Grafana     │
-                                               │   Dashboards    │
-                                               │   Port: 3000    │
-                                               └─────────────────┘
-```
-
-### Integrated Configuration (`docker-compose.integrated.yml`)
-
-```
-┌───────────────────────────────────────────────────────────────┐
-│                    AIgent/Bytebot Platform                    │
-├─────────────────┬─────────────────┬─────────────────────────────┤
-│  Bytebot-Agent  │   Bytebot-UI    │      Bytebot-Desktop        │
-│   Port: 9991    │   Port: 9992    │       Port: 9990            │
-└─────────────────┴─────────────────┴─────────────────────────────┘
-         │                │                        │
-         ▼                ▼                        ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Browser-Use Service                         │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
-│  │   Browser-Use   │  │      XVFB       │  │   MCP Server    │ │
-│  │  Port: 9242     │  │   Port: 5901    │  │   Port: 8100    │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-         │                                              │
-         ▼                                              ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   PostgreSQL    │    │      Redis      │    │   Monitoring    │
-│  (Shared DB)    │    │  (Shared Cache) │    │ Stack (Shared)  │
-│   Port: 5432    │    │   Port: 6379    │    │ Prometheus/Graf │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Key configuration options in `.env`:
+With uv (Python>=3.11):
 
 ```bash
-# AI API Keys
-ANTHROPIC_API_KEY=your_key_here
-OPENAI_API_KEY=your_key_here
-GEMINI_API_KEY=your_key_here
-
-# Local Deployment
-LOCAL_DEPLOYMENT=true
-BYTEBOT_INTEGRATION=true  # For integrated mode
-
-# Browser Settings
-BROWSER_USE_HEADLESS=false
-CHROME_DEBUG_PORT=9222
-
-# Security
-LOCAL_SECRETS_ENCRYPTION_KEY=your_secret_key
+uv pip install browser-use
 ```
 
-### Service Configuration
-
-Browser-use configuration is managed in `config/browser-use.yaml`:
-
-```yaml
-app:
-  name: "browser-use-local"
-  debug: false
-
-browser:
-  executable_path: "/usr/bin/chromium-browser"
-  headless: false
-  sandbox: false
-
-ai:
-  default_provider: "anthropic"
-  providers:
-    anthropic:
-      model: "claude-3-5-sonnet-20241022"
-```
-
-## 🌐 Service Access
-
-### API Endpoints
-
-- **Health Check**: `GET http://localhost:9242/health`
-- **Browser Tasks**: `POST http://localhost:9242/api/v1/tasks`
-- **Sessions**: `GET http://localhost:9242/api/v1/sessions`
-- **Screenshots**: `POST http://localhost:9242/api/v1/sessions/{id}/screenshot`
-
-### Browser Visualization
-
-- **VNC Access**: Connect to `localhost:5900` with VNC client
-- **Chrome DevTools**: Open `http://localhost:9222` in browser
-
-### Monitoring
-
-- **Prometheus**: `http://localhost:9090`
-- **Grafana**: `http://localhost:3000` (admin/admin)
-
-## 💾 Data Persistence
-
-### Volume Mounts
+If you don't already have Chrome or Chromium installed, you can also download the latest Chromium using playwright's install shortcut:
 
 ```bash
-# Browser-use data
-./browser-use/data:/data                    # Main data directory
-./browser-use/logs:/app/logs               # Application logs
-./browser-use/config:/app/config           # Configuration files
-./browser-use/secrets:/app/secrets         # Encrypted secrets
-
-# Database data
-postgres_data:/var/lib/postgresql/data     # PostgreSQL data
-redis_data:/data                           # Redis persistence
+uvx playwright install chromium --with-deps --no-shell
 ```
 
-### Backup Strategy
+
+Spin up your agent:
+
+```python
+import asyncio
+from dotenv import load_dotenv
+load_dotenv()
+from browser_use import Agent, ChatOpenAI
+
+async def main():
+    agent = Agent(
+        task="Find the number of stars of the browser-use repo",
+        llm=ChatOpenAI(model="gpt-4.1-mini"),
+    )
+    await agent.run()
+
+asyncio.run(main())
+```
+
+Add your API keys for the provider you want to use to your `.env` file.
 
 ```bash
-# Backup database
-docker-compose exec postgres pg_dump -U browseruse browseruse > backup.sql
-
-# Backup browser data
-tar -czf browser-data-backup.tar.gz browser-use/data/
-
-# Backup configuration
-tar -czf config-backup.tar.gz browser-use/config/ browser-use/secrets/
+OPENAI_API_KEY=
 ```
 
-## 🔒 Security Features
+For other settings, models, and more, check out the [documentation 📕](https://docs.browser-use.com).
 
-### Local-Only Architecture
-- ✅ No cloud dependencies (except AI APIs)
-- ✅ Local file-based secrets management
-- ✅ Local database storage
-- ✅ Local monitoring stack
+# Demos
 
-### Access Control
-- Role-based API access (admin/operator/viewer)
-- Local JWT token authentication
-- Encrypted secrets storage
-- Network isolation via Docker networks
+<br/><br/>
 
-### Chrome Security
-- Sandboxing disabled for local development
-- Remote debugging enabled for CDP access
-- Proper user permissions and isolation
+[Task](https://github.com/browser-use/browser-use/blob/main/examples/use-cases/shopping.py): Add grocery items to cart, and checkout.
 
-## 🔧 Maintenance
+[![AI Did My Groceries](https://github.com/user-attachments/assets/a0ffd23d-9a11-4368-8893-b092703abc14)](https://www.youtube.com/watch?v=L2Ya9PYNns8)
 
-### Log Management
+<br/><br/>
 
-```bash
-# View service logs
-docker-compose logs browser-use
-docker-compose logs -f postgres
+Prompt: Add my latest LinkedIn follower to my leads in Salesforce.
 
-# Log rotation is configured automatically
-# Logs stored in: ./browser-use/logs/
+![LinkedIn to Salesforce](https://github.com/user-attachments/assets/50d6e691-b66b-4077-a46c-49e9d4707e07)
+
+<br/><br/>
+
+[Prompt](https://github.com/browser-use/browser-use/blob/main/examples/use-cases/find_and_apply_to_jobs.py): Read my CV & find ML jobs, save them to a file, and then start applying for them in new tabs, if you need help, ask me.'
+
+https://github.com/user-attachments/assets/171fb4d6-0355-46f2-863e-edb04a828d04
+
+<br/><br/>
+
+[Prompt](https://github.com/browser-use/browser-use/blob/main/examples/browser/real_browser.py): Write a letter in Google Docs to my Papa, thanking him for everything, and save the document as a PDF.
+
+![Letter to Papa](https://github.com/user-attachments/assets/242ade3e-15bc-41c2-988f-cbc5415a66aa)
+
+<br/><br/>
+
+[Prompt](https://github.com/browser-use/browser-use/blob/main/examples/custom-functions/save_to_file_hugging_face.py): Look up models with a license of cc-by-sa-4.0 and sort by most likes on Hugging face, save top 5 to file.
+
+https://github.com/user-attachments/assets/de73ee39-432c-4b97-b4e8-939fd7f323b3
+
+<br/><br/>
+
+## More examples
+
+For more examples see the [examples](examples) folder or join the [Discord](https://link.browser-use.com/discord) and show off your project. You can also see our [`awesome-prompts`](https://github.com/browser-use/awesome-prompts) repo for prompting inspiration.
+
+## MCP Integration
+
+Browser-use supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), enabling integration with Claude Desktop and other MCP-compatible clients.
+
+### Use as MCP Server with Claude Desktop
+
+Add browser-use to your Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "browser-use": {
+      "command": "uvx",
+      "args": ["browser-use[cli]", "--mcp"],
+      "env": {
+        "OPENAI_API_KEY": "sk-..."
+      }
+    }
+  }
+}
 ```
 
-### Health Monitoring
+This gives Claude Desktop access to browser automation tools for web scraping, form filling, and more.
 
-```bash
-# Check service health
-curl http://localhost:9242/health
+### Connect External MCP Servers to Browser-Use Agent
 
-# View metrics
-curl http://localhost:9242/metrics
+Browser-use agents can connect to multiple external MCP servers to extend their capabilities:
 
-# Database status
-docker-compose exec postgres pg_isready -U browseruse
+```python
+import asyncio
+from browser_use import Agent, Tools, ChatOpenAI
+from browser_use.mcp.client import MCPClient
+
+async def main():
+    # Initialize tools
+    tools = Tools()
+
+    # Connect to multiple MCP servers
+    filesystem_client = MCPClient(
+        server_name="filesystem",
+        command="npx",
+        args=["-y", "@modelcontextprotocol/server-filesystem", "/Users/me/documents"]
+    )
+
+    github_client = MCPClient(
+        server_name="github",
+        command="npx",
+        args=["-y", "@modelcontextprotocol/server-github"],
+        env={"GITHUB_TOKEN": "your-github-token"}
+    )
+
+    # Connect and register tools from both servers
+    await filesystem_client.connect()
+    await filesystem_client.register_to_tools(tools)
+
+    await github_client.connect()
+    await github_client.register_to_tools(tools)
+
+    # Create agent with MCP-enabled tools
+    agent = Agent(
+        task="Find the latest pdf report in my documents and create a GitHub issue about it",
+        llm=ChatOpenAI(model="gpt-4.1-mini"),
+        tools=tools  # Tools has tools from both MCP servers
+    )
+
+    # Run the agent
+    await agent.run()
+
+    # Cleanup
+    await filesystem_client.disconnect()
+    await github_client.disconnect()
+
+asyncio.run(main())
 ```
 
-### Updates
+See the [MCP documentation](https://docs.browser-use.com/customize/mcp-server) for more details.
 
-```bash
-# Update browser-use image
-docker-compose pull browser-use
-docker-compose up -d browser-use
+# Vision
 
-# Update all services
-docker-compose pull
-docker-compose up -d
+Tell your computer what to do, and it gets it done.
+
+## Roadmap
+
+### Agent
+
+- [ ] Make agent 3x faster
+- [ ] Reduce token consumption (system prompt, DOM state)
+
+### DOM Extraction
+
+- [ ] Enable interaction with all UI elements
+- [ ] Improve state representation for UI elements so that any LLM can understand what's on the page
+
+### Workflows
+
+- [ ] Let user record a workflow - which we can rerun with browser-use as a fallback
+
+### User Experience
+
+- [ ] Create various templates for tutorial execution, job application, QA testing, social media, etc. which users can just copy & paste.
+
+### Parallelization
+
+- [ ] Human work is sequential. The real power of a browser agent comes into reality if we can parallelize similar tasks. For example, if you want to find contact information for 100 companies, this can all be done in parallel and reported back to a main agent, which processes the results and kicks off parallel subtasks again.
+
+## Contributing
+
+We love contributions! Feel free to open issues for bugs or feature requests. To contribute to the docs, check out the `/docs` folder.
+
+## 🧪 How to make your agents robust?
+
+We offer to run your tasks in our CI—automatically, on every update!
+
+- **Add your task:** Add a YAML file in `tests/agent_tasks/` (see the [`README there`](tests/agent_tasks/README.md) for details).
+- **Automatic validation:** Every time we push updates, your task will be run by the agent and evaluated using your criteria.
+
+## Local Setup
+
+To learn more about the library, check out the [local setup 📕](https://docs.browser-use.com/development/local-setup).
+
+`main` is the primary development branch with frequent changes. For production use, install a stable [versioned release](https://github.com/browser-use/browser-use/releases) instead.
+
+---
+
+## Swag
+
+Want to show off your Browser-use swag? Check out our [Merch store](https://browsermerch.com). Good contributors will receive swag for free 👀.
+
+## Citation
+
+If you use Browser Use in your research or project, please cite:
+
+```bibtex
+@software{browser_use2024,
+  author = {Müller, Magnus and Žunič, Gregor},
+  title = {Browser Use: Enable AI to control your browser},
+  year = {2024},
+  publisher = {GitHub},
+  url = {https://github.com/browser-use/browser-use}
+}
 ```
 
-## 🐛 Troubleshooting
+ <div align="center"> <img src="https://github.com/user-attachments/assets/06fa3078-8461-4560-b434-445510c1766f" width="400"/> 
+ 
+[![Twitter Follow](https://img.shields.io/twitter/follow/Gregor?style=social)](https://x.com/intent/user?screen_name=gregpr07)
+[![Twitter Follow](https://img.shields.io/twitter/follow/Magnus?style=social)](https://x.com/intent/user?screen_name=mamagnus00)
+ 
+ </div>
 
-### Common Issues
-
-1. **Chrome fails to start**
-   ```bash
-   # Check Chrome process
-   docker-compose exec browser-use ps aux | grep chrome
-   
-   # Verify display server
-   docker-compose exec xvfb xset -display :99 q
-   ```
-
-2. **Permission issues**
-   ```bash
-   # Fix data directory permissions
-   sudo chown -R 911:911 browser-use/data/
-   sudo chmod -R 755 browser-use/data/
-   ```
-
-3. **Port conflicts**
-   ```bash
-   # Check port usage
-   netstat -tulpn | grep :9242
-   
-   # Modify ports in docker-compose.yml or .env
-   ```
-
-### Debug Mode
-
-```bash
-# Enable debug logging
-echo "BROWSER_USE_DEBUG=true" >> .env
-docker-compose up -d
-
-# Access container for debugging
-docker-compose exec browser-use bash
-```
-
-## 🔗 Integration
-
-### Bytebot Integration
-
-When using the integrated configuration:
-
-1. Browser-use APIs are available to Bytebot agents
-2. Shared database for cross-service data
-3. Unified monitoring and logging
-4. MCP server for Claude integration
-
-### MCP Server
-
-The MCP server provides Claude-compatible tools:
-
-```bash
-# Access MCP server
-curl http://localhost:8100/tools
-
-# Available tools: browser_navigate, browser_click, browser_type, etc.
-```
-
-## 📚 API Documentation
-
-### Create Browser Task
-
-```bash
-curl -X POST http://localhost:9242/api/v1/tasks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Web Search Task",
-    "description": "Search for information on a website",
-    "url": "https://example.com",
-    "actions": [
-      {"type": "navigate", "url": "https://example.com"},
-      {"type": "screenshot"},
-      {"type": "extract", "selector": "h1, p"}
-    ]
-  }'
-```
-
-### Create Browser Session
-
-```bash
-curl -X POST http://localhost:9242/api/v1/sessions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "My Browser Session",
-    "profile": "default",
-    "headless": false
-  }'
-```
-
-For complete API documentation, visit the browser-use service at `/docs` endpoint once running.
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch
-3. Make changes
-4. Test with Docker Compose
-5. Submit pull request
-
-## 📞 Support
-
-- GitHub Issues: Create an issue for bugs or feature requests
-- Documentation: Check the browser-use official documentation
-- Community: Join the browser-use Discord server
+<div align="center">
+Made with ❤️ in Zurich and San Francisco
+ </div>

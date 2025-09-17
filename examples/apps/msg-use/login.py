@@ -54,7 +54,7 @@ async def login_to_whatsapp():
 
 		agent = Agent(task=task, llm=llm, browser_session=browser_session)
 
-		result = await agent.run()
+		_result = await agent.run()
 
 		print('\n✅ Login completed!')
 		print("Note: For now, you'll need to scan the QR code each time.")

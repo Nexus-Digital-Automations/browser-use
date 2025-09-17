@@ -108,7 +108,7 @@ async def test_full_integration():
         print("✅ Browser session started")
 
         # Check if we can get basic browser state
-        state = await session.get_browser_state_summary()
+        _state = await session.get_browser_state_summary()
         print("✅ Browser state accessible")
 
         await session.stop()

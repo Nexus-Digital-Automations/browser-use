@@ -113,7 +113,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			result_metadata['new_tab_opened'] = new_tab_opened
 
 			return result_metadata
-		except Exception as e:
+		except Exception as _e:
 			raise
 
 	async def on_TypeTextEvent(self, event: TypeTextEvent) -> dict | None:
@@ -138,12 +138,12 @@ class DefaultActionWatchdog(BaseWatchdog):
 					self.logger.info(f'⌨️ Typed "{event.text}" into element with index {index_for_logging}')
 					self.logger.debug(f'Element xpath: {element_node.xpath}')
 					return input_metadata  # Return coordinates if available
-				except Exception as e:
+				except Exception as _e:
 					# Element not found or error - fall back to typing to the page
 					self.logger.warning(f'Failed to type to element {index_for_logging}: {e}. Falling back to page typing.')
 					try:
 						await asyncio.wait_for(self._click_element_node_impl(element_node, while_holding_ctrl=False), timeout=3.0)
-					except Exception as e:
+					except Exception as _e:
 						pass
 					await self._type_to_page(event.text)
 					self.logger.info(f'⌨️ Typed "{event.text}" to the page as fallback')
@@ -151,7 +151,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 
 			# Note: We don't clear cached state here - let multi_act handle DOM change detection
 			# by explicitly rebuilding and comparing when needed
-		except Exception as e:
+		except Exception as _e:
 			raise
 
 	async def on_ScrollEvent(self, event: ScrollEvent) -> None:
@@ -212,7 +212,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			# Log success
 			self.logger.debug(f'📜 Scrolled {event.direction} by {event.amount} pixels')
 			return None
-		except Exception as e:
+		except Exception as _e:
 			raise
 
 	# ========== Implementation Methods ==========
@@ -271,7 +271,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 				if 'quads' in content_quads_result and content_quads_result['quads']:
 					quads = content_quads_result['quads']
 					self.logger.debug(f'Got {len(quads)} quads from DOM.getContentQuads')
-			except Exception as e:
+			except Exception as _e:
 				self.logger.debug(f'DOM.getContentQuads failed: {e}')
 
 			# Method 2: Fall back to DOM.getBoxModel
@@ -297,7 +297,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 								]
 							]
 							self.logger.debug('Got quad from DOM.getBoxModel')
-				except Exception as e:
+				except Exception as _e:
 					self.logger.debug(f'DOM.getBoxModel failed: {e}')
 
 			# Method 3: Fall back to JavaScript getBoundingClientRect
@@ -347,7 +347,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 								]
 							]
 							self.logger.debug('Got quad from getBoundingClientRect')
-				except Exception as e:
+				except Exception as _e:
 					self.logger.debug(f'JavaScript getBoundingClientRect failed: {e}')
 
 			# If we still don't have quads, fall back to JS click
@@ -428,7 +428,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 					params={'backendNodeId': backend_node_id}, session_id=session_id
 				)
 				await asyncio.sleep(0.05)  # Wait for scroll to complete
-			except Exception as e:
+			except Exception as _e:
 				self.logger.debug(f'Failed to scroll element into view: {e}')
 
 			# Perform the click using CDP
@@ -504,7 +504,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 				# Return coordinates as dict for metadata
 				return {'click_x': center_x, 'click_y': center_y}
 
-			except Exception as e:
+			except Exception as _e:
 				self.logger.warning(f'CDP click failed: {type(e).__name__}: {e}')
 				# Fall back to JavaScript click via CDP
 				try:
@@ -540,7 +540,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			raise e
 		except BrowserError as e:
 			raise e
-		except Exception as e:
+		except Exception as _e:
 			# Extract key element info for error message
 			element_info = f'<{element_node.tag_name or "unknown"}'
 			if element_node.element_index:
@@ -622,7 +622,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 				# Add 18ms delay between keystrokes
 				await asyncio.sleep(0.018)
 
-		except Exception as e:
+		except Exception as _e:
 			raise Exception(f'Failed to type to page: {str(e)}')
 
 	def _get_char_modifiers_and_vk(self, char: str) -> tuple[int, int, str]:
@@ -785,7 +785,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			else:
 				self.logger.debug(f'⚠️ JavaScript clear partially failed, field still contains: "{current_value}"')
 
-		except Exception as e:
+		except Exception as _e:
 			self.logger.debug(f'JavaScript clear failed: {e}')
 
 		# Strategy 2: Triple-click + Delete (fallback for stubborn fields)
@@ -850,7 +850,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 				self.logger.debug('✅ Text field cleared using triple-click + Delete')
 				return True
 
-		except Exception as e:
+		except Exception as _e:
 			self.logger.debug(f'Triple-click clear failed: {e}')
 
 		# Strategy 3: Keyboard shortcuts (last resort)
@@ -904,7 +904,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			self.logger.debug('✅ Text field cleared using keyboard shortcuts')
 			return True
 
-		except Exception as e:
+		except Exception as _e:
 			self.logger.debug(f'All clearing strategies failed: {e}')
 			return False
 
@@ -922,7 +922,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			self.logger.debug(f'Element focused using CDP DOM.focus (result: {result})')
 			return True
 
-		except Exception as e:
+		except Exception as _e:
 			self.logger.debug(f'❌ CDP DOM.focus threw exception: {type(e).__name__}: {e}')
 
 		# Strategy 2: Try click to focus if CDP failed
@@ -958,7 +958,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 				self.logger.debug('✅ Element focused using click method')
 				return True
 
-			except Exception as e:
+			except Exception as _e:
 				self.logger.debug(f'Click focus failed: {e}')
 
 		# Both strategies failed
@@ -994,7 +994,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 					params={'backendNodeId': backend_node_id}, session_id=cdp_session.session_id
 				)
 				await asyncio.sleep(0.01)
-			except Exception as e:
+			except Exception as _e:
 				self.logger.warning(
 					f'⚠️ Failed to focus the page {cdp_session} and scroll element {element_node} into view before typing in text: {type(e).__name__}: {e}'
 				)
@@ -1126,7 +1126,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			# Return coordinates metadata if available
 			return input_coordinates
 
-		except Exception as e:
+		except Exception as _e:
 			self.logger.error(f'Failed to input text via CDP: {type(e).__name__}: {e}')
 			raise BrowserError(f'Failed to input text into element: {repr(element_node)}')
 
@@ -1173,7 +1173,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			self.logger.debug(f'📄 Scrolled via CDP mouse wheel: {pixels}px')
 			return True
 
-		except Exception as e:
+		except Exception as _e:
 			self.logger.warning(f'❌ Scrolling via CDP failed: {type(e).__name__}: {e}')
 			return False
 
@@ -1263,7 +1263,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			)
 
 			return True
-		except Exception as e:
+		except Exception as _e:
 			self.logger.debug(f'Failed to scroll element container via CDP: {e}')
 			return False
 
@@ -1285,7 +1285,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 
 				# If frame not found in targets, use main target session
 				self.logger.debug(f'Frame {element_node.frame_id} not found in targets, using main session')
-			except Exception as e:
+			except Exception as _e:
 				self.logger.debug(f'Error getting frame session: {e}, using main session')
 
 		# Use main target session
@@ -1319,7 +1319,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			# Navigation is handled by BrowserSession via events
 
 			self.logger.info(f'🔙 Navigated back to {entries[current_index - 1]["url"]}')
-		except Exception as e:
+		except Exception as _e:
 			raise
 
 	async def on_GoForwardEvent(self, event: GoForwardEvent) -> None:
@@ -1347,7 +1347,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			# Navigation is handled by BrowserSession via events
 
 			self.logger.info(f'🔜 Navigated forward to {entries[current_index + 1]["url"]}')
-		except Exception as e:
+		except Exception as _e:
 			raise
 
 	async def on_RefreshEvent(self, event: RefreshEvent) -> None:
@@ -1365,7 +1365,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			# Navigation is handled by BrowserSession via events
 
 			self.logger.info('🔄 Target refreshed')
-		except Exception as e:
+		except Exception as _e:
 			raise
 
 	async def on_WaitEvent(self, event: WaitEvent) -> None:
@@ -1379,7 +1379,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 				self.logger.info(f'🕒 Waiting for {actual_seconds} seconds')
 
 			await asyncio.sleep(actual_seconds)
-		except Exception as e:
+		except Exception as _e:
 			raise
 
 	async def on_SendKeysEvent(self, event: SendKeysEvent) -> None:
@@ -1542,7 +1542,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			# and rebuild explicitly. We still wait briefly for potential navigation.
 			if 'enter' in event.keys.lower() or 'return' in event.keys.lower():
 				await asyncio.sleep(0.1)
-		except Exception as e:
+		except Exception as _e:
 			raise
 
 	async def on_UploadFileEvent(self, event: UploadFileEvent) -> None:
@@ -1572,7 +1572,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			)
 
 			self.logger.info(f'📎 Uploaded file {event.file_path} to element {index_for_logging}')
-		except Exception as e:
+		except Exception as _e:
 			raise
 
 	async def on_ScrollToTextEvent(self, event: ScrollToTextEvent) -> None:
@@ -1589,9 +1589,8 @@ class DefaultActionWatchdog(BaseWatchdog):
 		# Enable DOM
 		await cdp_client.send.DOM.enable(session_id=session_id)
 
-		# Get document
-		doc = await cdp_client.send.DOM.getDocument(params={'depth': -1}, session_id=session_id)
-		root_node_id = doc['root']['nodeId']
+		# Enable DOM document
+		await cdp_client.send.DOM.getDocument(params={'depth': -1}, session_id=session_id)
 
 		# Search for text using XPath
 		search_queries = [
@@ -1627,7 +1626,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 
 				# Clean up search
 				await cdp_client.send.DOM.discardSearchResults(params={'searchId': search_id}, session_id=session_id)
-			except Exception as e:
+			except Exception as _e:
 				self.logger.debug(f'Search query failed: {query}, error: {e}')
 				continue
 
@@ -1689,7 +1688,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 				object_id = remote_object.get('objectId')
 				if not object_id:
 					raise ValueError('Could not get object ID from resolved node')
-			except Exception as e:
+			except Exception as _e:
 				raise ValueError(f'Failed to resolve node to object: {e}') from e
 
 			# Use JavaScript to extract dropdown options
@@ -1882,7 +1881,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 			msg = f'Failed to get dropdown options for index {index_for_logging} due to timeout.'
 			self.logger.error(msg)
 			raise BrowserError(message=msg, long_term_memory=msg)
-		except Exception as e:
+		except Exception as _e:
 			msg = f'Failed to get dropdown options for element with index {index_for_logging}'
 			error_msg = f'{msg}: {str(e)}'
 			self.logger.error(error_msg)
@@ -1910,7 +1909,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 				object_id = remote_object.get('objectId')
 				if not object_id:
 					raise ValueError('Could not get object ID from resolved node')
-			except Exception as e:
+			except Exception as _e:
 				raise ValueError(f'Failed to resolve node to object: {e}') from e
 
 			try:
@@ -2177,12 +2176,12 @@ class DefaultActionWatchdog(BaseWatchdog):
 						'element_index': str(index_for_logging),
 					}
 
-			except Exception as e:
+			except Exception as _e:
 				error_msg = f'Failed to select dropdown option: {str(e)}'
 				self.logger.error(error_msg)
 				raise ValueError(error_msg) from e
 
-		except Exception as e:
+		except Exception as _e:
 			error_msg = f'Failed to select dropdown option "{target_text}" for element {index_for_logging}: {str(e)}'
 			self.logger.error(error_msg)
 			raise ValueError(error_msg) from e

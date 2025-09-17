@@ -816,8 +816,8 @@ class Agent(Generic[Context, AgentStructuredOutput], ParlantValidatedBrowserUse)
 			logger.debug(f'Model: {self.llm.model} failed')
 			error_msg += '\n\nReturn a valid JSON object with the required fields.'
 			logger.error(f'{prefix}{error_msg}')
-			# Add context message to help model fix parsing errors
-			parse_hint = 'Your response could not be parsed. Return a valid JSON object with the required fields.'
+			# Add context message to help model fix parsing errors (commented out)
+			# parse_hint = 'Your response could not be parsed. Return a valid JSON object with the required fields.'
 			# self._message_manager._add_context_message(UserMessage(content=parse_hint))
 		else:
 			self.logger.error(f'{prefix}{error_msg}')
@@ -1732,7 +1732,6 @@ class Agent(Generic[Context, AgentStructuredOutput], ParlantValidatedBrowserUse)
 
 			red = '\033[91m'
 			green = '\033[92m'
-			cyan = '\033[96m'
 			blue = '\033[34m'
 			reset = '\033[0m'
 

@@ -74,7 +74,7 @@ async def test_mock_agent():
 
         # Create agent with minimal task
         mock_llm = MockLLM()
-        agent = browser_use.Agent(
+        _agent = browser_use.Agent(
             task="test task",
             llm=mock_llm,
             browser_session=browser_use.BrowserSession(headless=True),

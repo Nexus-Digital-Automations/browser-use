@@ -1561,7 +1561,6 @@ class BrowserSession(BaseModel):
 
 	async def get_most_recently_opened_target_id(self) -> TargetID:
 		"""Get the most recently opened target ID."""
-		all_targets = await self.cdp_client.send.Target.getTargets()
 		return (await self._cdp_get_all_pages())[-1]['targetId']
 
 	def is_file_input(self, element: Any) -> bool:
@@ -1760,16 +1759,18 @@ class BrowserSession(BaseModel):
 		if not self.agent_focus:
 			return
 
-		cdp_session = await self.get_or_create_cdp_session()
+		# TODO: Implement CDP Network.setExtraHTTPHeaders
+		# cdp_session = await self.get_or_create_cdp_session()
 		# await cdp_session.cdp_client.send.Network.setExtraHTTPHeaders(params={'headers': headers}, session_id=cdp_session.session_id)
 		raise NotImplementedError('Not implemented yet')
 
 	async def _cdp_grant_permissions(self, permissions: list[str], origin: str | None = None) -> None:
 		"""Grant permissions using CDP Browser.grantPermissions."""
-		params = {'permissions': permissions}
+		# TODO: Implement CDP Browser.grantPermissions
+		# params = {'permissions': permissions}
 		# if origin:
 		# 	params['origin'] = origin
-		cdp_session = await self.get_or_create_cdp_session()
+		# cdp_session = await self.get_or_create_cdp_session()
 		# await cdp_session.cdp_client.send.Browser.grantPermissions(params=params, session_id=cdp_session.session_id)
 		raise NotImplementedError('Not implemented yet')
 
@@ -2207,9 +2208,7 @@ class BrowserSession(BaseModel):
 
 			if target_id in target_sessions:
 				assert target_id is not None
-				# Use existing session
-				session_id = target_sessions[target_id]
-				# Return the client with session attached (don't change focus)
+				# Use existing session - return the client with session attached (don't change focus)
 				return await self.get_or_create_cdp_session(target_id, focus=False)
 
 		# Frame not found

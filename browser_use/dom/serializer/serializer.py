@@ -201,7 +201,6 @@ class DOMTreeSerializer:
 		node.children = optimized_children
 
 		# Keep meaningful nodes
-		is_interactive_opt = self._is_interactive_cached(node.original_node)
 		is_visible = node.original_node.snapshot_node and node.original_node.is_visible
 
 		if (

@@ -292,8 +292,7 @@ class DeviceAuthClient:
 			# Use frontend URL for user-facing links
 			frontend_url = CONFIG.BROWSER_USE_CLOUD_UI_URL or self.base_url.replace('//api.', '//cloud.')
 
-			# Replace backend URL with frontend URL in verification URIs
-			verification_uri = device_auth['verification_uri'].replace(self.base_url, frontend_url)
+			# Replace backend URL with frontend URL in verification URI
 			verification_uri_complete = device_auth['verification_uri_complete'].replace(self.base_url, frontend_url)
 
 			terminal_width, _terminal_height = shutil.get_terminal_size((80, 20))
@@ -329,9 +328,9 @@ class DeviceAuthClient:
 				)
 			else:
 				logger.warning(f'Failed to authenticate with cloud service: HTTP {e.response.status_code} - {e.response.text}')
-		except httpx.RequestError as e:
+		except httpx.RequestError as _e:
 			# Connection/network errors
-			# logger.warning(f'Failed to connect to cloud service: {type(e).__name__}: {e}')
+			# logger.warning(f'Failed to connect to cloud service: {type(_e).__name__}: {_e}')
 			pass
 		except Exception as e:
 			# Other unexpected errors

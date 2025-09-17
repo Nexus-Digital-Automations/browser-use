@@ -384,7 +384,7 @@ class TestClickElementEvent:
         class ClickActionModel(ActionModel):
             click_element_by_index: ClickElementAction | None = None
 
-        result = await tools.act(
+        _result = await tools.act(
             ClickActionModel(**click_action_normal), browser_session
         )
         await asyncio.sleep(1)
@@ -403,7 +403,7 @@ class TestClickElementEvent:
                 index=link_indices[1], while_holding_ctrl=True
             )
         }
-        result = await tools.act(
+        _result = await tools.act(
             ClickActionModel(**click_action_new_tab), browser_session
         )
         await asyncio.sleep(1)

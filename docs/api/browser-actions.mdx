@@ -1,0 +1,549 @@
+---
+title: "Browser Actions API"
+description: "Comprehensive reference for all browser automation actions"
+icon: "mouse-pointer"
+---
+
+# Browser Actions API
+
+This page documents all available browser actions that can be performed through the browser-use library. Each action is implemented as a tool that the AI agent can use to interact with web pages.
+
+## Navigation Actions
+
+### navigate (GoToUrlAction)
+
+Navigate to a URL in the current tab or open a new tab.
+
+<ParamField path="url" type="string" required>
+  The URL to navigate to (must include protocol: http:// or https://)
+</ParamField>
+
+<ParamField path="new_tab" type="boolean" default="false">
+  Set to true to open the URL in a new tab instead of the current tab
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import GoToUrlAction
+
+action = GoToUrlAction(
+    url="https://example.com",
+    new_tab=False
+)
+```
+
+```json MCP Tool Call
+{
+  "name": "browser_navigate",
+  "arguments": {
+    "url": "https://example.com",
+    "new_tab": false
+  }
+}
+```
+</CodeGroup>
+
+**Returns:**
+```json
+{
+  "success": true,
+  "action": "navigate",
+  "url": "https://example.com",
+  "tab_id": "1234",
+  "loading_time_ms": 1250
+}
+```
+
+### go_back (NoParamsAction)
+
+Navigate back to the previous page in browser history.
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import NoParamsAction
+
+action = NoParamsAction()
+```
+
+```json MCP Tool Call
+{
+  "name": "browser_go_back",
+  "arguments": {}
+}
+```
+</CodeGroup>
+
+## Element Interaction Actions
+
+### click (ClickElementAction)
+
+Click on an element by its index from the current page state.
+
+<ParamField path="index" type="integer" required>
+  Index of the element to click (must be ≥ 1, from browser_get_state results)
+</ParamField>
+
+<ParamField path="while_holding_ctrl" type="boolean" default="null">
+  Set to true to perform Ctrl+Click (opens links in new background tab)
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import ClickElementAction
+
+action = ClickElementAction(
+    index=5,
+    while_holding_ctrl=True
+)
+```
+
+```json MCP Tool Call
+{
+  "name": "browser_click",
+  "arguments": {
+    "index": 5,
+    "while_holding_ctrl": true
+  }
+}
+```
+</CodeGroup>
+
+**Returns:**
+```json
+{
+  "success": true,
+  "action": "click",
+  "element_index": 5,
+  "element_text": "Submit Button",
+  "new_url": "https://example.com/submitted",
+  "execution_time_ms": 150
+}
+```
+
+### type (InputTextAction)
+
+Type text into an input field or any focusable element.
+
+<ParamField path="index" type="integer" required>
+  Index of the element to input text into (0 for page-level typing, ≥1 for specific elements)
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  The text to type into the element
+</ParamField>
+
+<ParamField path="clear_existing" type="boolean" default="true">
+  Set to true to clear existing text first, false to append to existing text
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import InputTextAction
+
+action = InputTextAction(
+    index=3,
+    text="user@example.com",
+    clear_existing=True
+)
+```
+
+```json MCP Tool Call
+{
+  "name": "browser_type",
+  "arguments": {
+    "index": 3,
+    "text": "user@example.com",
+    "clear_existing": true
+  }
+}
+```
+</CodeGroup>
+
+## Page State Actions
+
+### get_page_state (NoParamsAction)
+
+Retrieve the current page state including all interactive elements with their indices.
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import NoParamsAction
+
+action = NoParamsAction()
+```
+
+```json MCP Tool Call
+{
+  "name": "browser_get_state",
+  "arguments": {}
+}
+```
+</CodeGroup>
+
+**Returns:**
+```json
+{
+  "success": true,
+  "url": "https://example.com",
+  "title": "Example Page",
+  "elements": [
+    {
+      "index": 1,
+      "tag": "input",
+      "type": "email",
+      "placeholder": "Enter your email",
+      "text": "",
+      "clickable": true,
+      "coordinates": {"x": 150, "y": 200}
+    },
+    {
+      "index": 2,
+      "tag": "button",
+      "text": "Submit",
+      "clickable": true,
+      "coordinates": {"x": 200, "y": 250}
+    }
+  ],
+  "screenshot": "base64_encoded_image_data"
+}
+```
+
+### extract_content (ExtractPageContentAction)
+
+Extract structured content from the current page using AI.
+
+<ParamField path="value" type="string" required>
+  Description of what content to extract (e.g., "all product names and prices", "contact information")
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import ExtractPageContentAction
+
+action = ExtractPageContentAction(
+    value="Extract all product names, prices, and availability status"
+)
+```
+
+```json MCP Tool Call
+{
+  "name": "browser_extract_content",
+  "arguments": {
+    "value": "Extract all product names, prices, and availability status"
+  }
+}
+```
+</CodeGroup>
+
+**Returns:**
+```json
+{
+  "success": true,
+  "extracted_content": {
+    "products": [
+      {
+        "name": "Premium Laptop",
+        "price": "$1,299.99",
+        "availability": "In Stock"
+      },
+      {
+        "name": "Wireless Mouse",
+        "price": "$29.99",
+        "availability": "Limited Stock"
+      }
+    ]
+  },
+  "extraction_method": "ai_analysis",
+  "confidence": 0.95
+}
+```
+
+## Scrolling Actions
+
+### scroll (ScrollAction)
+
+Scroll the page or a specific scrollable element.
+
+<ParamField path="down" type="boolean" required>
+  Direction to scroll (true for down, false for up)
+</ParamField>
+
+<ParamField path="num_pages" type="number" required>
+  Number of viewport heights to scroll (0.5 = half page, 1.0 = full page, etc.)
+</ParamField>
+
+<ParamField path="frame_element_index" type="integer" default="null">
+  Optional element index to find scroll container for (for scrolling within specific elements)
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import ScrollAction
+
+action = ScrollAction(
+    down=True,
+    num_pages=1.5,
+    frame_element_index=None
+)
+```
+
+```json MCP Tool Call
+{
+  "name": "browser_scroll",
+  "arguments": {
+    "down": true,
+    "num_pages": 1.5
+  }
+}
+```
+</CodeGroup>
+
+## Tab Management Actions
+
+### list_tabs (NoParamsAction)
+
+Get a list of all open browser tabs with their URLs and titles.
+
+<CodeGroup>
+```json MCP Tool Call
+{
+  "name": "browser_list_tabs",
+  "arguments": {}
+}
+```
+</CodeGroup>
+
+**Returns:**
+```json
+{
+  "success": true,
+  "tabs": [
+    {
+      "tab_id": "1234",
+      "url": "https://example.com",
+      "title": "Example Page",
+      "active": true
+    },
+    {
+      "tab_id": "5678",
+      "url": "https://google.com",
+      "title": "Google",
+      "active": false
+    }
+  ]
+}
+```
+
+### switch_tab (SwitchTabAction)
+
+Switch to a different browser tab.
+
+<ParamField path="tab_id" type="string" required>
+  Last 4 characters of the target tab ID (from list_tabs result)
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import SwitchTabAction
+
+action = SwitchTabAction(tab_id="5678")
+```
+
+```json MCP Tool Call
+{
+  "name": "browser_switch_tab",
+  "arguments": {
+    "tab_id": "5678"
+  }
+}
+```
+</CodeGroup>
+
+### close_tab (CloseTabAction)
+
+Close a specific browser tab.
+
+<ParamField path="tab_id" type="string" required>
+  4-character tab ID to close (from list_tabs result)
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import CloseTabAction
+
+action = CloseTabAction(tab_id="5678")
+```
+
+```json MCP Tool Call
+{
+  "name": "browser_close_tab",
+  "arguments": {
+    "tab_id": "5678"
+  }
+}
+```
+</CodeGroup>
+
+## Form Actions
+
+### get_dropdown_options (GetDropdownOptionsAction)
+
+Get all available options from a dropdown/select element.
+
+<ParamField path="index" type="integer" required>
+  Index of the dropdown element (must be ≥ 1, from browser_get_state results)
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import GetDropdownOptionsAction
+
+action = GetDropdownOptionsAction(index=4)
+```
+</CodeGroup>
+
+**Returns:**
+```json
+{
+  "success": true,
+  "options": [
+    {"value": "us", "text": "United States"},
+    {"value": "ca", "text": "Canada"},
+    {"value": "uk", "text": "United Kingdom"}
+  ]
+}
+```
+
+### select_dropdown_option (SelectDropdownOptionAction)
+
+Select an option from a dropdown/select element.
+
+<ParamField path="index" type="integer" required>
+  Index of the dropdown element to select an option for
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  The text or exact value of the option to select
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import SelectDropdownOptionAction
+
+action = SelectDropdownOptionAction(
+    index=4,
+    text="United States"
+)
+```
+</CodeGroup>
+
+## File Actions
+
+### upload_file (UploadFileAction)
+
+Upload a file to a file input element.
+
+<ParamField path="index" type="integer" required>
+  Index of the file input element
+</ParamField>
+
+<ParamField path="path" type="string" required>
+  Absolute path to the file to upload
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import UploadFileAction
+
+action = UploadFileAction(
+    index=6,
+    path="/path/to/document.pdf"
+)
+```
+</CodeGroup>
+
+## Keyboard Actions
+
+### send_keys (SendKeysAction)
+
+Send keyboard shortcuts or special key combinations.
+
+<ParamField path="keys" type="string" required>
+  Keys to send (e.g., "Ctrl+C", "Tab", "Enter", "Escape")
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import SendKeysAction
+
+action = SendKeysAction(keys="Ctrl+S")
+```
+</CodeGroup>
+
+## Task Completion
+
+### done (DoneAction)
+
+Mark a task as complete with results.
+
+<ParamField path="text" type="string" required>
+  Description of what was accomplished
+</ParamField>
+
+<ParamField path="success" type="boolean" required>
+  Whether the task was completed successfully
+</ParamField>
+
+<ParamField path="files_to_display" type="array" default="[]">
+  List of file paths to display as results
+</ParamField>
+
+<CodeGroup>
+```python Python
+from browser_use.tools.views import DoneAction
+
+action = DoneAction(
+    text="Successfully extracted product data from 25 items",
+    success=True,
+    files_to_display=["/downloads/products.json"]
+)
+```
+</CodeGroup>
+
+## Error Handling
+
+All actions can return error responses in the following format:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ELEMENT_NOT_FOUND",
+    "message": "Element with index 5 not found on current page",
+    "action": "click",
+    "details": {
+      "element_index": 5,
+      "page_url": "https://example.com",
+      "total_elements": 4
+    }
+  }
+}
+```
+
+### Common Error Codes
+
+- `ELEMENT_NOT_FOUND` - Element index does not exist
+- `ELEMENT_NOT_CLICKABLE` - Element cannot be clicked
+- `NAVIGATION_FAILED` - URL navigation failed
+- `TIMEOUT_ERROR` - Operation timed out
+- `BROWSER_ERROR` - General browser operation error
+- `INVALID_INPUT` - Invalid action parameters
+
+## Best Practices
+
+1. **Always call `get_page_state` first** to get current element indices
+2. **Use descriptive extraction queries** for better AI content extraction results
+3. **Handle errors gracefully** and retry operations when appropriate
+4. **Use timeouts** for operations that might hang
+5. **Optimize scroll operations** by using appropriate page multipliers
+6. **Use new_tab=true** for navigation when you need to preserve the current page

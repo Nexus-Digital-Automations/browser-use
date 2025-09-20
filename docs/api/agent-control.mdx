@@ -1,0 +1,452 @@
+---
+title: "Agent Control API"
+description: "High-level agent orchestration and task execution API"
+icon: "robot"
+---
+
+# Agent Control API
+
+The Agent Control API provides high-level orchestration for autonomous browser automation tasks. Instead of manually calling individual browser actions, you can describe tasks in natural language and let the AI agent execute them automatically.
+
+## Core Agent Class
+
+### Agent
+
+The main agent class for executing browser automation tasks.
+
+```python
+from browser_use import Agent
+from browser_use.llm import ChatOpenAI
+
+agent = Agent(
+    task="Find product prices on this e-commerce site",
+    llm=ChatOpenAI(model="gpt-4o-mini"),
+    browser_config=None,
+    max_steps=100,
+    use_vision=True
+)
+```
+
+<ParamField path="task" type="string" required>
+  Natural language description of the task to perform
+</ParamField>
+
+<ParamField path="llm" type="BaseChatModel" required>
+  Language model instance for decision making (OpenAI, Anthropic, etc.)
+</ParamField>
+
+<ParamField path="browser_config" type="BrowserConfig" default="None">
+  Browser configuration settings (headless, viewport, etc.)
+</ParamField>
+
+<ParamField path="max_steps" type="integer" default="100">
+  Maximum number of actions the agent can take
+</ParamField>
+
+<ParamField path="use_vision" type="boolean" default="True">
+  Whether to use vision capabilities for understanding page content
+</ParamField>
+
+<ParamField path="tools" type="Tools" default="None">
+  Custom tools registry for additional actions
+</ParamField>
+
+<ParamField path="validate_output" type="boolean" default="False">
+  Whether to validate outputs using structured schemas
+</ParamField>
+
+## Agent Execution Methods
+
+### run()
+
+Execute the agent task asynchronously and return results.
+
+```python
+async def run_agent():
+    agent = Agent(
+        task="Extract all product information from this page",
+        llm=ChatOpenAI(model="gpt-4o-mini")
+    )
+
+    result = await agent.run()
+    return result
+```
+
+**Returns:**
+```python
+AgentResult(
+    success=True,
+    final_result="Extracted 25 products with names, prices, and availability",
+    steps_taken=15,
+    files_created=["/downloads/products.json"],
+    execution_time_seconds=45.2,
+    error=None
+)
+```
+
+### run_step()
+
+Execute a single agent step (for fine-grained control).
+
+```python
+async def step_by_step():
+    agent = Agent(task="Navigate to login page", llm=llm)
+
+    # Execute individual steps
+    step_result = await agent.run_step()
+
+    while not step_result.is_done and step_result.step_count < 10:
+        step_result = await agent.run_step()
+
+    return step_result
+```
+
+**Returns:**
+```python
+StepResult(
+    action_taken="navigate",
+    observation="Navigated to https://example.com/login",
+    is_done=False,
+    step_count=1,
+    error=None
+)
+```
+
+## MCP Integration
+
+### retry_with_browser_use_agent
+
+High-level MCP tool for executing complex browser automation tasks.
+
+<ParamField path="task" type="string" required>
+  Detailed description of the task to perform
+</ParamField>
+
+<ParamField path="max_steps" type="integer" default="50">
+  Maximum number of steps to take
+</ParamField>
+
+<ParamField path="use_vision" type="boolean" default="true">
+  Whether to use vision capabilities
+</ParamField>
+
+<ParamField path="starting_url" type="string" default="null">
+  URL to start the task from (if applicable)
+</ParamField>
+
+<CodeGroup>
+```json MCP Tool Call
+{
+  "name": "retry_with_browser_use_agent",
+  "arguments": {
+    "task": "Find the cheapest laptop under $1000 on this e-commerce site and save the details to a file",
+    "max_steps": 75,
+    "use_vision": true,
+    "starting_url": "https://electronics-store.com"
+  }
+}
+```
+
+```python Python Equivalent
+from browser_use import Agent
+from browser_use.llm import ChatOpenAI
+
+agent = Agent(
+    task="Find the cheapest laptop under $1000 on this e-commerce site and save the details to a file",
+    llm=ChatOpenAI(model="gpt-4o-mini"),
+    max_steps=75,
+    use_vision=True
+)
+
+# Navigate to starting URL first
+await agent.browser_session.navigate("https://electronics-store.com")
+result = await agent.run()
+```
+</CodeGroup>
+
+**Returns:**
+```json
+{
+  "success": true,
+  "task_completed": true,
+  "result": "Found ASUS VivoBook at $899 - saved details to laptop_search_results.json",
+  "steps_taken": 23,
+  "files_created": ["/workspace/laptop_search_results.json"],
+  "execution_time_seconds": 67.4,
+  "screenshots": [
+    "step_1_homepage.png",
+    "step_15_product_page.png",
+    "step_23_results.png"
+  ]
+}
+```
+
+## Task Configuration
+
+### Advanced Agent Configuration
+
+```python
+from browser_use import Agent, BrowserConfig, Tools
+from browser_use.llm import ChatOpenAI
+
+# Custom browser configuration
+browser_config = BrowserConfig(
+    headless=False,
+    viewport_width=1920,
+    viewport_height=1080,
+    user_data_dir="/path/to/profile",
+    extensions_enabled=True,
+    stealth_mode=True
+)
+
+# Custom tools configuration
+tools = Tools()
+tools.add_custom_tool("save_to_database", save_data_function)
+
+# Advanced agent setup
+agent = Agent(
+    task="Comprehensive price monitoring across multiple sites",
+    llm=ChatOpenAI(
+        model="gpt-4o",
+        temperature=0.1,
+        max_tokens=4000
+    ),
+    browser_config=browser_config,
+    tools=tools,
+    max_steps=200,
+    use_vision=True,
+    validate_output=True,
+    system_prompt_suffix="Focus on accuracy over speed. Take screenshots at key decision points."
+)
+```
+
+## Task Types & Examples
+
+### Data Extraction Tasks
+
+```python
+# E-commerce product scraping
+agent = Agent(
+    task="""
+    Extract all product information from this e-commerce category page:
+    - Product names
+    - Prices (current and original if on sale)
+    - Customer ratings
+    - Availability status
+    - Product URLs
+    Save results to products.json
+    """,
+    llm=llm
+)
+```
+
+### Form Automation Tasks
+
+```python
+# Automated form submission
+agent = Agent(
+    task="""
+    Fill out the job application form with this information:
+    - Name: John Smith
+    - Email: john.smith@email.com
+    - Phone: (555) 123-4567
+    - Resume: upload resume.pdf from Downloads folder
+    Submit the form and confirm submission success
+    """,
+    llm=llm
+)
+```
+
+### Research & Analysis Tasks
+
+```python
+# Competitive analysis
+agent = Agent(
+    task="""
+    Research competitor pricing for 'wireless headphones' on these sites:
+    1. Amazon
+    2. Best Buy
+    3. Target
+
+    For each site, find top 5 results and extract:
+    - Product name
+    - Price
+    - Rating
+    - Number of reviews
+
+    Create a comparison spreadsheet with findings
+    """,
+    llm=llm,
+    max_steps=150
+)
+```
+
+### Multi-Site Workflows
+
+```python
+# Cross-platform data collection
+agent = Agent(
+    task="""
+    Collect contact information for tech companies:
+    1. Search for 'AI startups San Francisco' on LinkedIn
+    2. Visit first 10 company profile pages
+    3. Extract company name, website, employee count
+    4. Visit each company website
+    5. Find and extract contact email addresses
+    6. Save all data to contacts.csv
+    """,
+    llm=llm,
+    max_steps=300,
+    use_vision=True
+)
+```
+
+## Agent Result Processing
+
+### Handling Results
+
+```python
+async def process_agent_result():
+    agent = Agent(task="Extract news headlines", llm=llm)
+    result = await agent.run()
+
+    if result.success:
+        print(f"Task completed in {result.steps_taken} steps")
+        print(f"Result: {result.final_result}")
+
+        # Process any created files
+        for file_path in result.files_created:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+                # Process extracted data
+
+    else:
+        print(f"Task failed: {result.error}")
+        # Handle failure scenarios
+```
+
+### Structured Output Validation
+
+```python
+from pydantic import BaseModel
+from typing import List
+
+class ProductInfo(BaseModel):
+    name: str
+    price: float
+    rating: float
+    in_stock: bool
+
+class ProductList(BaseModel):
+    products: List[ProductInfo]
+    total_count: int
+    page_url: str
+
+# Agent with structured output
+agent = Agent(
+    task="Extract product information and return as structured data",
+    llm=llm,
+    validate_output=True,
+    output_schema=ProductList
+)
+
+result = await agent.run()
+# result.structured_output will be a ProductList instance
+```
+
+## Error Handling & Recovery
+
+### Built-in Error Recovery
+
+The agent automatically handles common errors:
+
+- **Element not found**: Retries with updated page state
+- **Navigation failures**: Attempts alternative navigation methods
+- **Timeouts**: Adjusts wait times and retries
+- **Popup handling**: Automatically dismisses common popups
+
+### Custom Error Handling
+
+```python
+from browser_use.exceptions import BrowserError, AgentError
+
+async def robust_agent_execution():
+    agent = Agent(task="Complex task", llm=llm)
+
+    try:
+        result = await agent.run()
+        return result
+    except BrowserError as e:
+        # Handle browser-specific errors
+        print(f"Browser error: {e}")
+        # Retry with different configuration
+    except AgentError as e:
+        # Handle agent execution errors
+        print(f"Agent error: {e}")
+        # Log for debugging
+    except Exception as e:
+        # Handle unexpected errors
+        print(f"Unexpected error: {e}")
+```
+
+## Performance Optimization
+
+### Optimization Tips
+
+1. **Use specific tasks**: More specific task descriptions lead to better performance
+2. **Set appropriate max_steps**: Balance thoroughness with efficiency
+3. **Use vision selectively**: Enable only when visual understanding is needed
+4. **Cache browser sessions**: Reuse sessions for related tasks
+5. **Optimize LLM settings**: Adjust temperature and token limits
+
+```python
+# Optimized agent configuration
+agent = Agent(
+    task="Specific, well-defined task description",
+    llm=ChatOpenAI(
+        model="gpt-4o-mini",  # Faster model for simple tasks
+        temperature=0.1,      # Low temperature for consistency
+        max_tokens=1000       # Limit tokens for simple tasks
+    ),
+    max_steps=20,           # Conservative step limit
+    use_vision=False        # Disable if not needed
+)
+```
+
+## Monitoring & Debugging
+
+### Debug Mode
+
+```python
+import logging
+
+# Enable debug logging
+logging.basicConfig(level=logging.DEBUG)
+
+agent = Agent(
+    task="Debug this task",
+    llm=llm,
+    debug_mode=True  # Enables verbose logging
+)
+
+result = await agent.run()
+```
+
+### Step-by-Step Monitoring
+
+```python
+async def monitor_agent_progress():
+    agent = Agent(task="Monitored task", llm=llm)
+
+    # Monitor each step
+    while not agent.is_done:
+        step = await agent.run_step()
+        print(f"Step {step.step_count}: {step.action_taken}")
+        print(f"Observation: {step.observation}")
+
+        if step.error:
+            print(f"Error in step: {step.error}")
+            break
+
+    return agent.get_final_result()
+```

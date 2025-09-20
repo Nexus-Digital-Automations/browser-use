@@ -178,8 +178,46 @@
             ]
           },
           {
+            "group": "API Reference",
+            "pages": [
+              {
+                "group": "API Documentation",
+                "icon": "code",
+                "isDefaultOpen": true,
+                "pages": [
+                  "api/overview",
+                  "api/browser-actions",
+                  "api/agent-control",
+                  "api/session-management"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              {
+                "group": "Integration",
+                "icon": "puzzle-piece",
+                "isDefaultOpen": true,
+                "pages": [
+                  "guides/integration-guide",
+                  "guides/troubleshooting",
+                  "guides/best-practices"
+                ]
+              }
+            ]
+          },
+          {
             "group": "Examples",
             "pages": [
+              {
+                "group": "Automation Patterns",
+                "icon": "code",
+                "pages": [
+                  "examples/automation-patterns"
+                ]
+              },
               {
                 "group": "Templates",
                 "icon": "folder",

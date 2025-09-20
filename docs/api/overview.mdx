@@ -1,0 +1,110 @@
+---
+title: "API Overview"
+description: "Comprehensive API reference for browser-use automation library"
+icon: "code"
+---
+
+# Browser-Use API Overview
+
+Browser-use provides a comprehensive set of APIs for AI-powered browser automation. This documentation covers all available endpoints, parameters, and response schemas to help developers integrate browser automation into their applications.
+
+## Core Architecture
+
+The browser-use library follows an event-driven architecture with several key components:
+
+### Main Components
+
+1. **Agent API**: High-level orchestration for task execution
+2. **Browser Session API**: Browser lifecycle and session management
+3. **Tools API**: Action registry for browser operations
+4. **DOM Service API**: Page content extraction and processing
+5. **MCP Integration API**: Model Context Protocol server functionality
+
+## API Categories
+
+<CardGroup cols={2}>
+  <Card title="Browser Actions" icon="mouse-pointer" href="/api/browser-actions">
+    Core browser automation actions like click, type, navigate, and scroll
+  </Card>
+  <Card title="Content Extraction" icon="magnifying-glass" href="/api/content-extraction">
+    Extract structured data and content from web pages
+  </Card>
+  <Card title="Session Management" icon="window" href="/api/session-management">
+    Manage browser sessions, tabs, and configurations
+  </Card>
+  <Card title="Agent Control" icon="robot" href="/api/agent-control">
+    High-level agent task execution and orchestration
+  </Card>
+</CardGroup>
+
+## Authentication & Setup
+
+Browser-use operates as a local library and MCP server. Authentication is handled through:
+
+- **API Keys**: Configure LLM provider keys (OpenAI, Anthropic, etc.)
+- **Environment Variables**: Set configuration via environment variables
+- **MCP Configuration**: Integrate with Claude Desktop via MCP protocol
+
+## Rate Limits & Performance
+
+- **LLM Calls**: Limited by your provider's rate limits
+- **Browser Operations**: Optimized for real-time performance
+- **Concurrent Sessions**: Supports multiple parallel browser sessions
+- **Memory Usage**: Efficient DOM processing and screenshot handling
+
+## Error Handling
+
+All APIs return structured error responses with:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "BROWSER_ERROR",
+    "message": "Description of the error",
+    "details": {
+      "action": "click_element",
+      "element_index": 5,
+      "stack_trace": "..."
+    }
+  }
+}
+```
+
+## SDKs and Language Support
+
+<CardGroup cols={3}>
+  <Card title="Python" icon="python">
+    Primary SDK with full feature support
+  </Card>
+  <Card title="JavaScript/TypeScript" icon="js">
+    MCP client integration for Node.js
+  </Card>
+  <Card title="REST API" icon="globe">
+    HTTP endpoints for any language
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+```python
+import asyncio
+from browser_use import Agent, ChatOpenAI
+
+async def main():
+    agent = Agent(
+        task="Extract product information from this page",
+        llm=ChatOpenAI(model="gpt-4o-mini"),
+    )
+    result = await agent.run()
+    print(result)
+
+asyncio.run(main())
+```
+
+## Next Steps
+
+- [Browser Actions API](/api/browser-actions) - Core automation actions
+- [Integration Guide](/guides/integration) - Step-by-step setup instructions
+- [Examples](/examples/api-examples) - Practical code examples
+- [Troubleshooting](/guides/troubleshooting) - Common issues and solutions

@@ -1,0 +1,793 @@
+---
+title: "Integration Guide"
+description: "Step-by-step guide for integrating browser-use into your applications"
+icon: "puzzle-piece"
+---
+
+# Browser-Use Integration Guide
+
+This comprehensive guide walks you through integrating browser-use into your applications, from basic setup to advanced production deployments.
+
+## Quick Start Integration
+
+### 1. Installation
+
+<CodeGroup>
+```bash Python (uv)
+uv pip install browser-use
+```
+
+```bash Python (pip)
+pip install browser-use
+```
+
+```bash With CLI support
+uv pip install browser-use[cli]
+```
+</CodeGroup>
+
+### 2. Browser Setup
+
+Install Chromium if you don't have Chrome installed:
+
+```bash
+uvx playwright install chromium --with-deps --no-shell
+```
+
+### 3. Basic Implementation
+
+<CodeGroup>
+```python Basic Agent
+import asyncio
+from dotenv import load_dotenv
+load_dotenv()
+
+from browser_use import Agent, ChatOpenAI
+
+async def main():
+    agent = Agent(
+        task="Find the current price of Bitcoin",
+        llm=ChatOpenAI(model="gpt-4o-mini"),
+    )
+    result = await agent.run()
+    print(result)
+
+asyncio.run(main())
+```
+
+```javascript Node.js (MCP Client)
+import { MCPClient } from '@modelcontextprotocol/client';
+
+const client = new MCPClient({
+  server: {
+    command: 'uvx',
+    args: ['browser-use[cli]', '--mcp']
+  }
+});
+
+await client.connect();
+
+const result = await client.callTool('browser_navigate', {
+  url: 'https://coinmarketcap.com'
+});
+
+console.log(result);
+```
+</CodeGroup>
+
+## Environment Configuration
+
+### Environment Variables
+
+Create a `.env` file in your project root:
+
+```bash
+# LLM Provider (choose one)
+OPENAI_API_KEY=sk-your-openai-key
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
+
+# Browser Configuration
+BROWSER_USE_HEADLESS=false
+BROWSER_USE_STEALTH=true
+BROWSER_USE_TIMEOUT=30000
+
+# Optional: Custom paths
+BROWSER_USE_USER_DATA_DIR=/path/to/chrome/profile
+BROWSER_USE_DOWNLOAD_DIR=/path/to/downloads
+```
+
+### Configuration Class
+
+```python
+from browser_use import BrowserConfig
+
+config = BrowserConfig(
+    headless=False,
+    stealth_mode=True,
+    viewport_width=1920,
+    viewport_height=1080,
+    user_data_dir="./browser_profile",
+    timeout=30000
+)
+```
+
+## Integration Patterns
+
+### 1. Web Scraping Service
+
+```python
+from browser_use import Agent, BrowserConfig, ChatOpenAI
+import json
+from typing import List, Dict
+
+class WebScrapingService:
+    def __init__(self, llm_model: str = "gpt-4o-mini"):
+        self.llm = ChatOpenAI(model=llm_model)
+        self.config = BrowserConfig(
+            headless=True,
+            stealth_mode=True
+        )
+
+    async def scrape_product_data(self, url: str) -> Dict:
+        """Scrape product information from e-commerce site."""
+        agent = Agent(
+            task=f"""
+            Visit {url} and extract:
+            - Product name
+            - Price (current and original if on sale)
+            - Customer rating
+            - Number of reviews
+            - Availability status
+            Return as structured JSON
+            """,
+            llm=self.llm,
+            browser_config=self.config
+        )
+
+        result = await agent.run()
+        return self._parse_result(result)
+
+    def _parse_result(self, result) -> Dict:
+        # Parse and validate the extracted data
+        try:
+            return json.loads(result.final_result)
+        except json.JSONDecodeError:
+            return {"error": "Failed to parse result"}
+
+# Usage
+scraper = WebScrapingService()
+product_data = await scraper.scrape_product_data("https://example-store.com/product/123")
+```
+
+### 2. Automated Testing Framework
+
+```python
+from browser_use import Agent, BrowserSession, ChatOpenAI
+import pytest
+from typing import List, Dict
+
+class BrowserTestFramework:
+    def __init__(self):
+        self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.1)
+        self.session = None
+
+    async def setup_session(self):
+        """Setup persistent browser session for tests."""
+        self.session = BrowserSession()
+        await self.session.start()
+
+    async def teardown_session(self):
+        """Clean up browser session."""
+        if self.session:
+            await self.session.close()
+
+    async def test_user_flow(self, flow_description: str, base_url: str) -> Dict:
+        """Test a complete user flow."""
+        agent = Agent(
+            task=f"""
+            Starting from {base_url}, perform this user flow:
+            {flow_description}
+
+            Take screenshots at each major step.
+            Report any errors or unexpected behavior.
+            Verify that each step completes successfully.
+            """,
+            llm=self.llm,
+            browser_session=self.session
+        )
+
+        result = await agent.run()
+        return {
+            "success": result.success,
+            "steps_completed": result.steps_taken,
+            "screenshots": result.files_created,
+            "errors": result.error
+        }
+
+# Usage with pytest
+@pytest.fixture
+async def browser_tester():
+    tester = BrowserTestFramework()
+    await tester.setup_session()
+    yield tester
+    await tester.teardown_session()
+
+@pytest.mark.asyncio
+async def test_login_flow(browser_tester):
+    result = await browser_tester.test_user_flow(
+        flow_description="Login with valid credentials and verify dashboard access",
+        base_url="https://app.example.com/login"
+    )
+    assert result["success"] == True
+```
+
+### 3. Data Collection Pipeline
+
+```python
+from browser_use import Agent, ChatOpenAI
+import asyncio
+from dataclasses import dataclass
+from typing import List, Dict, Optional
+import json
+
+@dataclass
+class DataCollectionTask:
+    site_url: str
+    extraction_rules: str
+    output_file: str
+    max_pages: Optional[int] = None
+
+class DataCollectionPipeline:
+    def __init__(self, concurrent_agents: int = 3):
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
+        self.concurrent_agents = concurrent_agents
+        self.results = []
+
+    async def collect_data(self, tasks: List[DataCollectionTask]) -> List[Dict]:
+        """Run data collection tasks in parallel."""
+        semaphore = asyncio.Semaphore(self.concurrent_agents)
+
+        async def process_task(task: DataCollectionTask):
+            async with semaphore:
+                return await self._process_single_task(task)
+
+        results = await asyncio.gather(*[
+            process_task(task) for task in tasks
+        ])
+
+        return results
+
+    async def _process_single_task(self, task: DataCollectionTask) -> Dict:
+        """Process a single data collection task."""
+        agent = Agent(
+            task=f"""
+            Visit {task.site_url} and extract data according to these rules:
+            {task.extraction_rules}
+
+            {f"Process up to {task.max_pages} pages" if task.max_pages else "Process all relevant pages"}
+
+            Save the extracted data to {task.output_file} in JSON format.
+            Return a summary of collected data.
+            """,
+            llm=self.llm,
+            max_steps=200 if task.max_pages and task.max_pages > 5 else 100
+        )
+
+        result = await agent.run()
+        return {
+            "task": task.site_url,
+            "success": result.success,
+            "data_file": task.output_file,
+            "summary": result.final_result
+        }
+
+# Usage
+pipeline = DataCollectionPipeline(concurrent_agents=5)
+
+tasks = [
+    DataCollectionTask(
+        site_url="https://news-site1.com",
+        extraction_rules="Extract headlines, publish dates, and article summaries",
+        output_file="news_site1_data.json",
+        max_pages=10
+    ),
+    DataCollectionTask(
+        site_url="https://ecommerce-site.com/category/electronics",
+        extraction_rules="Extract product names, prices, ratings, and availability",
+        output_file="electronics_data.json",
+        max_pages=25
+    )
+]
+
+results = await pipeline.collect_data(tasks)
+```
+
+## Framework-Specific Integrations
+
+### Django Integration
+
+```python
+# views.py
+from django.http import JsonResponse
+from django.views import View
+from browser_use import Agent, ChatOpenAI
+import asyncio
+
+class BrowserAutomationView(View):
+    def __init__(self):
+        super().__init__()
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
+
+    def post(self, request):
+        task_description = request.POST.get('task')
+        target_url = request.POST.get('url')
+
+        # Run browser automation
+        result = asyncio.run(self._run_automation(task_description, target_url))
+
+        return JsonResponse({
+            'success': result.success,
+            'result': result.final_result,
+            'steps': result.steps_taken
+        })
+
+    async def _run_automation(self, task: str, url: str):
+        agent = Agent(
+            task=f"Go to {url} and {task}",
+            llm=self.llm
+        )
+        return await agent.run()
+
+# urls.py
+from django.urls import path
+from .views import BrowserAutomationView
+
+urlpatterns = [
+    path('automate/', BrowserAutomationView.as_view(), name='browser_automation'),
+]
+```
+
+### FastAPI Integration
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from browser_use import Agent, ChatOpenAI
+import asyncio
+
+app = FastAPI()
+
+class AutomationRequest(BaseModel):
+    task: str
+    url: str
+    max_steps: int = 50
+
+class AutomationResponse(BaseModel):
+    success: bool
+    result: str
+    steps_taken: int
+    execution_time: float
+
+@app.post("/automate", response_model=AutomationResponse)
+async def run_automation(request: AutomationRequest):
+    try:
+        llm = ChatOpenAI(model="gpt-4o-mini")
+        agent = Agent(
+            task=f"Navigate to {request.url} and {request.task}",
+            llm=llm,
+            max_steps=request.max_steps
+        )
+
+        result = await agent.run()
+
+        return AutomationResponse(
+            success=result.success,
+            result=result.final_result,
+            steps_taken=result.steps_taken,
+            execution_time=result.execution_time_seconds
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+```
+
+### Flask Integration
+
+```python
+from flask import Flask, request, jsonify
+from browser_use import Agent, ChatOpenAI
+import asyncio
+
+app = Flask(__name__)
+
+class BrowserAutomationService:
+    def __init__(self):
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
+
+    async def run_task(self, task: str, url: str = None):
+        full_task = f"Navigate to {url} and {task}" if url else task
+
+        agent = Agent(task=full_task, llm=self.llm)
+        return await agent.run()
+
+automation_service = BrowserAutomationService()
+
+@app.route('/automate', methods=['POST'])
+def automate():
+    data = request.get_json()
+    task = data.get('task')
+    url = data.get('url')
+
+    if not task:
+        return jsonify({'error': 'Task description required'}), 400
+
+    # Run async task in sync context
+    result = asyncio.run(automation_service.run_task(task, url))
+
+    return jsonify({
+        'success': result.success,
+        'result': result.final_result,
+        'steps': result.steps_taken
+    })
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+## MCP Integration
+
+### Claude Desktop Integration
+
+Add browser-use to your Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "browser-use": {
+      "command": "uvx",
+      "args": ["browser-use[cli]", "--mcp"],
+      "env": {
+        "OPENAI_API_KEY": "your-api-key",
+        "BROWSER_USE_HEADLESS": "false",
+        "BROWSER_USE_STEALTH": "true"
+      }
+    }
+  }
+}
+```
+
+### Custom MCP Client
+
+```python
+from browser_use.mcp.client import MCPClient
+import asyncio
+
+async def main():
+    # Connect to browser-use MCP server
+    client = MCPClient(
+        server_name="browser-automation",
+        command="uvx",
+        args=["browser-use[cli]", "--mcp"],
+        env={"OPENAI_API_KEY": "your-key"}
+    )
+
+    await client.connect()
+
+    # Use browser automation tools
+    nav_result = await client.call_tool("browser_navigate", {
+        "url": "https://example.com"
+    })
+
+    state_result = await client.call_tool("browser_get_state", {})
+
+    click_result = await client.call_tool("browser_click", {
+        "index": 1
+    })
+
+    await client.disconnect()
+
+asyncio.run(main())
+```
+
+## Production Deployment
+
+### Docker Configuration
+
+```dockerfile
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    chromium \
+    chromium-driver \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Copy application code
+COPY . /app
+WORKDIR /app
+
+# Set environment variables
+ENV BROWSER_USE_HEADLESS=true
+ENV BROWSER_USE_BROWSER_PATH=/usr/bin/chromium
+
+EXPOSE 8000
+
+CMD ["python", "app.py"]
+```
+
+### Kubernetes Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: browser-automation-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: browser-automation
+  template:
+    metadata:
+      labels:
+        app: browser-automation
+    spec:
+      containers:
+      - name: browser-automation
+        image: your-registry/browser-automation:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-keys
+              key: openai-key
+        - name: BROWSER_USE_HEADLESS
+          value: "true"
+        resources:
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: browser-automation-service
+spec:
+  selector:
+    app: browser-automation
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: LoadBalancer
+```
+
+### Scaling Considerations
+
+```python
+from browser_use import Agent, BrowserConfig, ChatOpenAI
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import queue
+
+class ScalableBrowserService:
+    def __init__(self, max_concurrent_sessions: int = 10):
+        self.max_concurrent_sessions = max_concurrent_sessions
+        self.session_pool = queue.Queue(maxsize=max_concurrent_sessions)
+        self.executor = ThreadPoolExecutor(max_workers=max_concurrent_sessions)
+
+    async def initialize_session_pool(self):
+        """Pre-create browser sessions for better performance."""
+        for i in range(self.max_concurrent_sessions):
+            config = BrowserConfig(
+                headless=True,
+                user_data_dir=f"/tmp/browser_session_{i}"
+            )
+            session = BrowserSession(config=config)
+            await session.start()
+            self.session_pool.put(session)
+
+    async def execute_task(self, task: str) -> dict:
+        """Execute task using pooled session."""
+        session = self.session_pool.get()
+
+        try:
+            agent = Agent(
+                task=task,
+                llm=ChatOpenAI(model="gpt-4o-mini"),
+                browser_session=session
+            )
+            result = await agent.run()
+            return result
+        finally:
+            # Return session to pool
+            self.session_pool.put(session)
+
+    async def shutdown(self):
+        """Clean up all sessions."""
+        while not self.session_pool.empty():
+            session = self.session_pool.get()
+            await session.close()
+```
+
+## Error Handling & Recovery
+
+### Robust Error Handling
+
+```python
+from browser_use import Agent, ChatOpenAI, BrowserError
+import logging
+import asyncio
+
+class RobustBrowserService:
+    def __init__(self):
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
+        self.logger = logging.getLogger(__name__)
+
+    async def execute_with_retry(self, task: str, max_retries: int = 3) -> dict:
+        """Execute task with retry logic."""
+        for attempt in range(max_retries):
+            try:
+                agent = Agent(task=task, llm=self.llm)
+                result = await agent.run()
+
+                if result.success:
+                    return result
+                else:
+                    self.logger.warning(f"Task failed (attempt {attempt + 1}): {result.error}")
+
+            except BrowserError as e:
+                self.logger.error(f"Browser error (attempt {attempt + 1}): {e}")
+                if attempt == max_retries - 1:
+                    raise
+
+                # Wait before retry
+                await asyncio.sleep(2 ** attempt)
+
+            except Exception as e:
+                self.logger.error(f"Unexpected error (attempt {attempt + 1}): {e}")
+                if attempt == max_retries - 1:
+                    raise
+
+                await asyncio.sleep(2 ** attempt)
+
+        raise Exception(f"Task failed after {max_retries} attempts")
+
+    async def execute_with_fallback(self, primary_task: str, fallback_task: str) -> dict:
+        """Execute task with fallback strategy."""
+        try:
+            return await self.execute_with_retry(primary_task)
+        except Exception as e:
+            self.logger.warning(f"Primary task failed: {e}. Trying fallback.")
+            return await self.execute_with_retry(fallback_task)
+```
+
+## Monitoring & Observability
+
+### Metrics Collection
+
+```python
+from browser_use import Agent, ChatOpenAI
+import time
+import logging
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class TaskMetrics:
+    task_id: str
+    start_time: float
+    end_time: Optional[float] = None
+    success: bool = False
+    steps_taken: int = 0
+    error_message: Optional[str] = None
+
+class MonitoredBrowserService:
+    def __init__(self):
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
+        self.metrics = []
+        self.logger = logging.getLogger(__name__)
+
+    async def execute_monitored_task(self, task: str, task_id: str) -> dict:
+        """Execute task with comprehensive monitoring."""
+        metrics = TaskMetrics(
+            task_id=task_id,
+            start_time=time.time()
+        )
+
+        try:
+            agent = Agent(task=task, llm=self.llm)
+            result = await agent.run()
+
+            metrics.end_time = time.time()
+            metrics.success = result.success
+            metrics.steps_taken = result.steps_taken
+
+            if not result.success:
+                metrics.error_message = str(result.error)
+
+            # Log metrics
+            execution_time = metrics.end_time - metrics.start_time
+            self.logger.info(f"Task {task_id} completed in {execution_time:.2f}s")
+
+            return result
+
+        except Exception as e:
+            metrics.end_time = time.time()
+            metrics.error_message = str(e)
+            self.logger.error(f"Task {task_id} failed: {e}")
+            raise
+
+        finally:
+            self.metrics.append(metrics)
+
+    def get_performance_stats(self) -> dict:
+        """Get performance statistics."""
+        if not self.metrics:
+            return {}
+
+        successful_tasks = [m for m in self.metrics if m.success]
+        failed_tasks = [m for m in self.metrics if not m.success]
+
+        execution_times = [
+            m.end_time - m.start_time
+            for m in self.metrics if m.end_time
+        ]
+
+        return {
+            "total_tasks": len(self.metrics),
+            "successful_tasks": len(successful_tasks),
+            "failed_tasks": len(failed_tasks),
+            "success_rate": len(successful_tasks) / len(self.metrics) if self.metrics else 0,
+            "average_execution_time": sum(execution_times) / len(execution_times) if execution_times else 0,
+            "average_steps": sum(m.steps_taken for m in self.metrics) / len(self.metrics)
+        }
+```
+
+## Best Practices
+
+### 1. Configuration Management
+
+- Use environment variables for sensitive data
+- Implement configuration validation
+- Use different configs for dev/staging/production
+
+### 2. Resource Management
+
+- Implement session pooling for high-throughput applications
+- Set appropriate timeouts and limits
+- Monitor memory and CPU usage
+
+### 3. Error Handling
+
+- Implement retry logic with exponential backoff
+- Use circuit breakers for external dependencies
+- Log errors with sufficient context for debugging
+
+### 4. Security
+
+- Validate all inputs
+- Use domain restrictions in production
+- Implement rate limiting
+- Keep browser and dependencies updated
+
+### 5. Performance
+
+- Use headless mode in production
+- Implement caching where appropriate
+- Use concurrent execution for independent tasks
+- Monitor and optimize based on metrics
+
+This integration guide provides comprehensive patterns for successfully integrating browser-use into various application architectures and deployment scenarios.

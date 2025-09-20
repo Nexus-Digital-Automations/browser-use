@@ -1,0 +1,1128 @@
+---
+title: "Automation Patterns"
+description: "Comprehensive code examples for common browser automation scenarios"
+icon: "code"
+---
+
+# Browser Automation Patterns
+
+This guide showcases comprehensive code examples for common browser automation scenarios using browser-use. Each pattern includes multiple language implementations and best practices.
+
+## Data Extraction Patterns
+
+### E-commerce Product Scraping
+
+<CodeGroup>
+```python Python - Complete Product Scraper
+import asyncio
+import json
+from typing import List, Dict, Optional
+from dataclasses import dataclass
+from browser_use import Agent, BrowserConfig, ChatOpenAI
+
+@dataclass
+class Product:
+    name: str
+    price: float
+    original_price: Optional[float]
+    rating: Optional[float]
+    reviews_count: Optional[int]
+    availability: str
+    url: str
+
+class EcommerceScraper:
+    def __init__(self, headless: bool = True):
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
+        self.config = BrowserConfig(
+            headless=headless,
+            stealth_mode=True,
+            viewport_width=1920,
+            viewport_height=1080
+        )
+
+    async def scrape_product_category(self,
+                                    base_url: str,
+                                    category_path: str,
+                                    max_pages: int = 5) -> List[Product]:
+        """Scrape all products from a category across multiple pages."""
+
+        agent = Agent(
+            task=f"""
+            Navigate to {base_url}{category_path} and extract product information.
+
+            For each product, extract:
+            - Product name
+            - Current price (as number)
+            - Original price if on sale (as number)
+            - Star rating (as number)
+            - Number of reviews (as number)
+            - Availability status (In Stock, Out of Stock, Limited, etc.)
+            - Product page URL
+
+            Process up to {max_pages} pages of results.
+            Navigate through pagination to get all products.
+
+            Return data as a JSON array of products.
+            """,
+            llm=self.llm,
+            browser_config=self.config,
+            max_steps=100 + (max_pages * 20)
+        )
+
+        result = await agent.run()
+
+        if result.success:
+            try:
+                products_data = json.loads(result.final_result)
+                return [Product(**product) for product in products_data]
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"Error parsing product data: {e}")
+                return []
+        else:
+            print(f"Scraping failed: {result.error}")
+            return []
+
+    async def monitor_price_changes(self, product_urls: List[str]) -> Dict[str, Dict]:
+        """Monitor price changes for specific products."""
+
+        price_data = {}
+
+        for url in product_urls:
+            agent = Agent(
+                task=f"""
+                Go to {url} and extract current product information:
+                - Product name
+                - Current price
+                - Availability
+                - Any discount percentage
+
+                Return as JSON with timestamp.
+                """,
+                llm=self.llm,
+                browser_config=self.config
+            )
+
+            result = await agent.run()
+
+            if result.success:
+                try:
+                    price_data[url] = json.loads(result.final_result)
+                except json.JSONDecodeError:
+                    price_data[url] = {"error": "Failed to parse price data"}
+
+        return price_data
+
+# Usage Example
+async def main():
+    scraper = EcommerceScraper(headless=False)
+
+    # Scrape laptop category
+    laptops = await scraper.scrape_product_category(
+        base_url="https://example-electronics.com",
+        category_path="/laptops",
+        max_pages=3
+    )
+
+    print(f"Found {len(laptops)} laptops")
+    for laptop in laptops[:5]:  # Show first 5
+        print(f"{laptop.name}: ${laptop.price}")
+
+    # Monitor specific products
+    monitor_urls = [laptop.url for laptop in laptops[:3]]
+    price_updates = await scraper.monitor_price_changes(monitor_urls)
+
+    print("Price monitoring results:", price_updates)
+
+# Run the scraper
+asyncio.run(main())
+```
+
+```javascript Node.js - MCP Product Scraper
+import { MCPClient } from '@modelcontextprotocol/client';
+import fs from 'fs/promises';
+
+class ProductScraper {
+    constructor() {
+        this.client = new MCPClient({
+            server: {
+                command: 'uvx',
+                args: ['browser-use[cli]', '--mcp'],
+                env: {
+                    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+                    BROWSER_USE_HEADLESS: 'true',
+                    BROWSER_USE_STEALTH: 'true'
+                }
+            }
+        });
+    }
+
+    async connect() {
+        await this.client.connect();
+    }
+
+    async disconnect() {
+        await this.client.disconnect();
+    }
+
+    async scrapeProductData(categoryUrl, maxProducts = 50) {
+        try {
+            // Navigate to category page
+            await this.client.callTool('browser_navigate', {
+                url: categoryUrl
+            });
+
+            // Extract product data using AI
+            const extractResult = await this.client.callTool('browser_extract_content', {
+                value: `Extract product information for up to ${maxProducts} products including: name, price, rating, availability, and product URL`
+            });
+
+            return JSON.parse(extractResult.extracted_content);
+
+        } catch (error) {
+            console.error('Scraping error:', error);
+            return { error: error.message };
+        }
+    }
+
+    async comparePrices(productName, sites) {
+        const results = [];
+
+        for (const site of sites) {
+            try {
+                // Search for product on each site
+                await this.client.callTool('browser_navigate', {
+                    url: site.searchUrl
+                });
+
+                await this.client.callTool('browser_type', {
+                    index: site.searchBoxIndex,
+                    text: productName
+                });
+
+                await this.client.callTool('browser_click', {
+                    index: site.searchButtonIndex
+                });
+
+                // Extract price information
+                const priceData = await this.client.callTool('browser_extract_content', {
+                    value: 'Find the price and availability for the most relevant product match'
+                });
+
+                results.push({
+                    site: site.name,
+                    data: JSON.parse(priceData.extracted_content)
+                });
+
+            } catch (error) {
+                results.push({
+                    site: site.name,
+                    error: error.message
+                });
+            }
+        }
+
+        return results;
+    }
+}
+
+// Usage
+async function main() {
+    const scraper = new ProductScraper();
+    await scraper.connect();
+
+    try {
+        // Scrape category
+        const products = await scraper.scrapeProductData(
+            'https://example-store.com/electronics/laptops',
+            25
+        );
+
+        await fs.writeFile('products.json', JSON.stringify(products, null, 2));
+        console.log(`Scraped ${products.length} products`);
+
+        // Compare prices for first product
+        if (products.length > 0) {
+            const comparison = await scraper.comparePrices(
+                products[0].name,
+                [
+                    { name: 'Site1', searchUrl: 'https://site1.com/search', searchBoxIndex: 1, searchButtonIndex: 2 },
+                    { name: 'Site2', searchUrl: 'https://site2.com/search', searchBoxIndex: 1, searchButtonIndex: 2 }
+                ]
+            );
+
+            console.log('Price comparison:', comparison);
+        }
+
+    } finally {
+        await scraper.disconnect();
+    }
+}
+
+main().catch(console.error);
+```
+</CodeGroup>
+
+### News and Content Aggregation
+
+<CodeGroup>
+```python Python - News Aggregator
+import asyncio
+import json
+from datetime import datetime
+from typing import List, Dict
+from browser_use import Agent, ChatOpenAI, BrowserConfig
+
+class NewsAggregator:
+    def __init__(self):
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
+        self.config = BrowserConfig(headless=True, stealth_mode=True)
+
+    async def aggregate_news(self, sources: List[Dict[str, str]], topics: List[str]) -> Dict:
+        """Aggregate news from multiple sources on specific topics."""
+
+        all_articles = []
+
+        for source in sources:
+            for topic in topics:
+                articles = await self._scrape_source_topic(source, topic)
+                all_articles.extend(articles)
+
+        # Deduplicate and rank articles
+        unique_articles = self._deduplicate_articles(all_articles)
+        ranked_articles = await self._rank_articles(unique_articles)
+
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "total_articles": len(ranked_articles),
+            "sources": [s["name"] for s in sources],
+            "topics": topics,
+            "articles": ranked_articles
+        }
+
+    async def _scrape_source_topic(self, source: Dict[str, str], topic: str) -> List[Dict]:
+        """Scrape articles from a single source on a specific topic."""
+
+        agent = Agent(
+            task=f"""
+            Go to {source['url']} and search for articles about '{topic}'.
+
+            Extract the following for each relevant article:
+            - Headline/title
+            - Publication date and time
+            - Author (if available)
+            - Brief summary or excerpt
+            - Full article URL
+            - Source name: {source['name']}
+            - Topic: {topic}
+
+            Look for recent articles (last 24-48 hours preferred).
+            Return as JSON array of articles.
+            """,
+            llm=self.llm,
+            browser_config=self.config,
+            max_steps=50
+        )
+
+        result = await agent.run()
+
+        if result.success:
+            try:
+                return json.loads(result.final_result)
+            except json.JSONDecodeError:
+                return []
+        return []
+
+    def _deduplicate_articles(self, articles: List[Dict]) -> List[Dict]:
+        """Remove duplicate articles based on title similarity."""
+        unique_articles = []
+        seen_titles = set()
+
+        for article in articles:
+            title_lower = article.get("title", "").lower()
+            # Simple deduplication - could be enhanced with fuzzy matching
+            if title_lower not in seen_titles:
+                seen_titles.add(title_lower)
+                unique_articles.append(article)
+
+        return unique_articles
+
+    async def _rank_articles(self, articles: List[Dict]) -> List[Dict]:
+        """Rank articles by relevance and recency."""
+
+        agent = Agent(
+            task=f"""
+            Analyze and rank these {len(articles)} news articles by:
+            1. Recency (newer articles ranked higher)
+            2. Relevance and importance of the topic
+            3. Source credibility
+
+            Articles to rank: {json.dumps(articles, indent=2)}
+
+            Return the articles in ranked order (most important first) with added ranking scores.
+            Include a "ranking_score" field (1-100) and "ranking_reason" for each article.
+            """,
+            llm=self.llm,
+            max_steps=10
+        )
+
+        result = await agent.run()
+
+        if result.success:
+            try:
+                return json.loads(result.final_result)
+            except json.JSONDecodeError:
+                return articles
+        return articles
+
+# Usage
+async def main():
+    aggregator = NewsAggregator()
+
+    news_sources = [
+        {"name": "TechCrunch", "url": "https://techcrunch.com"},
+        {"name": "The Verge", "url": "https://theverge.com"},
+        {"name": "Ars Technica", "url": "https://arstechnica.com"}
+    ]
+
+    topics = ["artificial intelligence", "cryptocurrency", "climate change"]
+
+    news_data = await aggregator.aggregate_news(news_sources, topics)
+
+    # Save results
+    with open(f"news_aggregation_{datetime.now().strftime('%Y%m%d_%H%M')}.json", "w") as f:
+        json.dump(news_data, f, indent=2)
+
+    print(f"Aggregated {news_data['total_articles']} articles")
+    for article in news_data['articles'][:5]:  # Show top 5
+        print(f"[{article.get('ranking_score', 'N/A')}] {article.get('title', 'No title')}")
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+## Form Automation Patterns
+
+### Multi-Step Application Process
+
+<CodeGroup>
+```python Python - Job Application Bot
+import asyncio
+from typing import Dict, List, Optional
+from dataclasses import dataclass
+from browser_use import Agent, ChatOpenAI, BrowserConfig
+
+@dataclass
+class ApplicantProfile:
+    personal_info: Dict[str, str]
+    education: List[Dict[str, str]]
+    experience: List[Dict[str, str]]
+    skills: List[str]
+    documents: Dict[str, str]  # document_type -> file_path
+
+class JobApplicationBot:
+    def __init__(self, applicant_profile: ApplicantProfile):
+        self.profile = applicant_profile
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
+        self.config = BrowserConfig(
+            headless=False,  # Show browser for verification
+            stealth_mode=True
+        )
+
+    async def apply_to_job(self, job_url: str, custom_cover_letter: Optional[str] = None) -> Dict:
+        """Complete job application process."""
+
+        # Generate custom cover letter if not provided
+        if not custom_cover_letter:
+            custom_cover_letter = await self._generate_cover_letter(job_url)
+
+        agent = Agent(
+            task=f"""
+            Complete the job application process at {job_url}.
+
+            Use this applicant information:
+
+            Personal Information:
+            - Name: {self.profile.personal_info.get('name')}
+            - Email: {self.profile.personal_info.get('email')}
+            - Phone: {self.profile.personal_info.get('phone')}
+            - Address: {self.profile.personal_info.get('address')}
+
+            Education: {json.dumps(self.profile.education, indent=2)}
+
+            Experience: {json.dumps(self.profile.experience, indent=2)}
+
+            Skills: {', '.join(self.profile.skills)}
+
+            Documents to upload:
+            - Resume: {self.profile.documents.get('resume')}
+            - Cover Letter: Use this text: {custom_cover_letter}
+
+            Complete these steps:
+            1. Navigate to the job posting
+            2. Click "Apply" or similar button
+            3. Fill out all required fields accurately
+            4. Upload required documents
+            5. Review application before submitting
+            6. Take screenshot of confirmation page
+            7. Return job title, company name, and application confirmation details
+
+            Be thorough and accurate. Don't submit unless all information is correct.
+            """,
+            llm=self.llm,
+            browser_config=self.config,
+            max_steps=150
+        )
+
+        result = await agent.run()
+
+        return {
+            "job_url": job_url,
+            "success": result.success,
+            "application_details": result.final_result,
+            "steps_taken": result.steps_taken,
+            "screenshots": result.files_created
+        }
+
+    async def _generate_cover_letter(self, job_url: str) -> str:
+        """Generate a custom cover letter based on job posting."""
+
+        # First, extract job details
+        job_analyzer = Agent(
+            task=f"""
+            Visit {job_url} and extract key information about this job:
+            - Company name
+            - Job title
+            - Key requirements
+            - Company culture/values mentioned
+            - Specific skills requested
+
+            Return a summary of the job posting.
+            """,
+            llm=self.llm,
+            browser_config=self.config,
+            max_steps=20
+        )
+
+        job_details = await job_analyzer.run()
+
+        # Generate cover letter
+        cover_letter_prompt = f"""
+        Based on this job posting: {job_details.final_result}
+
+        And this applicant profile:
+        - Name: {self.profile.personal_info.get('name')}
+        - Experience: {self.profile.experience}
+        - Skills: {self.profile.skills}
+
+        Write a compelling, personalized cover letter that:
+        1. Addresses the specific company and role
+        2. Highlights relevant experience and skills
+        3. Shows enthusiasm for the company/role
+        4. Is professional but personable
+        5. Is 3-4 paragraphs long
+
+        Format as plain text suitable for copying into application forms.
+        """
+
+        # Use LLM to generate cover letter
+        cover_letter_response = await self.llm.ainvoke([{"role": "user", "content": cover_letter_prompt}])
+        return cover_letter_response.content
+
+    async def bulk_apply(self, job_urls: List[str], max_concurrent: int = 3) -> List[Dict]:
+        """Apply to multiple jobs concurrently."""
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def apply_single(url):
+            async with semaphore:
+                return await self.apply_to_job(url)
+
+        results = await asyncio.gather(*[
+            apply_single(url) for url in job_urls
+        ])
+
+        return results
+
+# Usage Example
+async def main():
+    # Define applicant profile
+    profile = ApplicantProfile(
+        personal_info={
+            "name": "Jane Smith",
+            "email": "jane.smith@email.com",
+            "phone": "(555) 123-4567",
+            "address": "123 Main St, City, State 12345"
+        },
+        education=[
+            {
+                "degree": "Bachelor of Science in Computer Science",
+                "school": "University of Technology",
+                "graduation_year": "2020",
+                "gpa": "3.8"
+            }
+        ],
+        experience=[
+            {
+                "title": "Software Developer",
+                "company": "Tech Startup Inc",
+                "duration": "2020-2023",
+                "responsibilities": "Developed web applications using Python and React"
+            }
+        ],
+        skills=["Python", "JavaScript", "React", "SQL", "Git"],
+        documents={
+            "resume": "/path/to/resume.pdf",
+            "portfolio": "/path/to/portfolio.pdf"
+        }
+    )
+
+    bot = JobApplicationBot(profile)
+
+    # Apply to a single job
+    result = await bot.apply_to_job("https://company.com/jobs/software-engineer")
+    print(f"Application result: {result['success']}")
+
+    # Bulk apply to multiple jobs
+    job_urls = [
+        "https://company1.com/jobs/developer",
+        "https://company2.com/jobs/engineer",
+        "https://company3.com/jobs/programmer"
+    ]
+
+    bulk_results = await bot.bulk_apply(job_urls, max_concurrent=2)
+
+    successful_applications = [r for r in bulk_results if r['success']]
+    print(f"Successfully applied to {len(successful_applications)} out of {len(job_urls)} jobs")
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+## Testing and QA Patterns
+
+### Comprehensive Website Testing
+
+<CodeGroup>
+```python Python - Automated QA Testing
+import asyncio
+import json
+from typing import List, Dict, Optional
+from dataclasses import dataclass
+from browser_use import Agent, ChatOpenAI, BrowserConfig
+
+@dataclass
+class TestCase:
+    name: str
+    description: str
+    steps: List[str]
+    expected_outcome: str
+    priority: str = "medium"  # low, medium, high, critical
+
+@dataclass
+class TestResult:
+    test_case: TestCase
+    success: bool
+    execution_time: float
+    screenshots: List[str]
+    error_message: Optional[str] = None
+    actual_outcome: Optional[str] = None
+
+class WebsiteQATester:
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+        self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.1)  # Low temp for consistency
+        self.config = BrowserConfig(
+            headless=False,  # Visual feedback for QA
+            viewport_width=1920,
+            viewport_height=1080
+        )
+
+    async def run_comprehensive_test_suite(self, test_cases: List[TestCase]) -> Dict:
+        """Run a complete test suite and generate report."""
+
+        results = []
+
+        for test_case in test_cases:
+            print(f"Running test: {test_case.name}")
+            result = await self._execute_test_case(test_case)
+            results.append(result)
+
+        # Generate test report
+        report = self._generate_test_report(results)
+
+        return {
+            "test_results": results,
+            "report": report,
+            "summary": {
+                "total_tests": len(results),
+                "passed": len([r for r in results if r.success]),
+                "failed": len([r for r in results if not r.success]),
+                "pass_rate": len([r for r in results if r.success]) / len(results) if results else 0
+            }
+        }
+
+    async def _execute_test_case(self, test_case: TestCase) -> TestResult:
+        """Execute a single test case."""
+
+        start_time = asyncio.get_event_loop().time()
+
+        agent = Agent(
+            task=f"""
+            Test Case: {test_case.name}
+            Description: {test_case.description}
+
+            Starting from {self.base_url}, perform these test steps:
+            {chr(10).join(f"{i+1}. {step}" for i, step in enumerate(test_case.steps))}
+
+            Expected Outcome: {test_case.expected_outcome}
+
+            Instructions:
+            1. Take a screenshot before starting
+            2. Execute each step carefully
+            3. Take screenshots at key points
+            4. Verify the expected outcome
+            5. Report whether the test PASSED or FAILED
+            6. Describe what actually happened vs. what was expected
+            7. Take a final screenshot showing the result
+
+            Return a detailed test execution report including:
+            - Test status (PASSED/FAILED)
+            - Actual outcome observed
+            - Any discrepancies from expected outcome
+            - Screenshots taken during execution
+            """,
+            llm=self.llm,
+            browser_config=self.config,
+            max_steps=50
+        )
+
+        try:
+            result = await agent.run()
+            execution_time = asyncio.get_event_loop().time() - start_time
+
+            # Parse test result
+            success = "PASSED" in result.final_result.upper()
+
+            return TestResult(
+                test_case=test_case,
+                success=success,
+                execution_time=execution_time,
+                screenshots=result.files_created,
+                actual_outcome=result.final_result
+            )
+
+        except Exception as e:
+            execution_time = asyncio.get_event_loop().time() - start_time
+
+            return TestResult(
+                test_case=test_case,
+                success=False,
+                execution_time=execution_time,
+                screenshots=[],
+                error_message=str(e)
+            )
+
+    def _generate_test_report(self, results: List[TestResult]) -> str:
+        """Generate a comprehensive test report."""
+
+        passed = [r for r in results if r.success]
+        failed = [r for r in results if not r.success]
+
+        report = f"""
+# QA Test Report for {self.base_url}
+
+## Summary
+- **Total Tests:** {len(results)}
+- **Passed:** {len(passed)}
+- **Failed:** {len(failed)}
+- **Pass Rate:** {len(passed)/len(results)*100:.1f}%
+
+## Failed Tests
+"""
+
+        for result in failed:
+            report += f"""
+### ❌ {result.test_case.name}
+- **Priority:** {result.test_case.priority}
+- **Expected:** {result.test_case.expected_outcome}
+- **Actual:** {result.actual_outcome or result.error_message}
+- **Execution Time:** {result.execution_time:.2f}s
+"""
+
+        report += "\n## Passed Tests\n"
+
+        for result in passed:
+            report += f"- ✅ {result.test_case.name} ({result.execution_time:.2f}s)\n"
+
+        return report
+
+    async def test_user_journey(self, journey_name: str, user_flows: List[Dict]) -> Dict:
+        """Test complete user journeys across multiple flows."""
+
+        agent = Agent(
+            task=f"""
+            Test the complete user journey: {journey_name}
+
+            Execute these user flows in sequence:
+            {json.dumps(user_flows, indent=2)}
+
+            For each flow:
+            1. Start from {self.base_url}
+            2. Follow the user flow steps
+            3. Verify expected outcomes
+            4. Take screenshots at each major step
+            5. Note any issues or unexpected behavior
+
+            Provide a comprehensive journey test report including:
+            - Flow completion status
+            - User experience observations
+            - Performance notes
+            - Any blockers or issues found
+            """,
+            llm=self.llm,
+            browser_config=self.config,
+            max_steps=200
+        )
+
+        result = await agent.run()
+
+        return {
+            "journey_name": journey_name,
+            "success": result.success,
+            "report": result.final_result,
+            "screenshots": result.files_created
+        }
+
+# Usage Example
+async def main():
+    tester = WebsiteQATester("https://your-website.com")
+
+    # Define test cases
+    test_cases = [
+        TestCase(
+            name="User Registration",
+            description="Test new user account creation",
+            steps=[
+                "Click on 'Sign Up' button",
+                "Fill in email: test@example.com",
+                "Fill in password: TestPass123",
+                "Confirm password: TestPass123",
+                "Click 'Create Account'",
+                "Verify email confirmation message appears"
+            ],
+            expected_outcome="Account created successfully with confirmation message",
+            priority="critical"
+        ),
+        TestCase(
+            name="Product Search",
+            description="Test product search functionality",
+            steps=[
+                "Click on search box",
+                "Type 'laptop'",
+                "Press Enter or click search",
+                "Verify search results appear",
+                "Click on first product",
+                "Verify product details page loads"
+            ],
+            expected_outcome="Search returns relevant products and product details are accessible",
+            priority="high"
+        ),
+        TestCase(
+            name="Contact Form",
+            description="Test contact form submission",
+            steps=[
+                "Navigate to Contact page",
+                "Fill in name: John Doe",
+                "Fill in email: john@example.com",
+                "Fill in message: This is a test message",
+                "Click Submit",
+                "Verify success message"
+            ],
+            expected_outcome="Form submits successfully with confirmation message",
+            priority="medium"
+        )
+    ]
+
+    # Run test suite
+    test_results = await tester.run_comprehensive_test_suite(test_cases)
+
+    # Save test report
+    with open("qa_test_report.json", "w") as f:
+        json.dump(test_results, f, indent=2, default=str)
+
+    print(f"Test Summary: {test_results['summary']}")
+    print(f"Pass Rate: {test_results['summary']['pass_rate']*100:.1f}%")
+
+    # Test user journeys
+    user_flows = [
+        {
+            "name": "Browse and Purchase",
+            "steps": [
+                "Browse product categories",
+                "Search for specific product",
+                "Add to cart",
+                "Proceed to checkout",
+                "Fill shipping information",
+                "Complete purchase"
+            ]
+        }
+    ]
+
+    journey_result = await tester.test_user_journey("E-commerce Purchase Flow", user_flows)
+    print(f"User journey test: {'PASSED' if journey_result['success'] else 'FAILED'}")
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+## Research and Competitive Analysis
+
+<CodeGroup>
+```python Python - Competitive Analysis Tool
+import asyncio
+import json
+from typing import List, Dict, Set
+from dataclasses import dataclass
+from browser_use import Agent, ChatOpenAI, BrowserConfig
+
+@dataclass
+class CompetitorProfile:
+    name: str
+    website: str
+    industry: str
+    focus_areas: List[str]
+
+class CompetitiveAnalysisTool:
+    def __init__(self):
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
+        self.config = BrowserConfig(headless=True, stealth_mode=True)
+
+    async def analyze_competitor_landscape(self,
+                                         company_name: str,
+                                         industry: str,
+                                         focus_areas: List[str]) -> Dict:
+        """Perform comprehensive competitive analysis."""
+
+        # Step 1: Find competitors
+        competitors = await self._find_competitors(company_name, industry)
+
+        # Step 2: Analyze each competitor
+        competitor_analyses = []
+        for competitor in competitors:
+            analysis = await self._analyze_single_competitor(competitor, focus_areas)
+            competitor_analyses.append(analysis)
+
+        # Step 3: Generate comparative insights
+        insights = await self._generate_competitive_insights(competitor_analyses, focus_areas)
+
+        return {
+            "target_company": company_name,
+            "industry": industry,
+            "competitors_found": len(competitors),
+            "competitors": competitor_analyses,
+            "insights": insights,
+            "analysis_date": datetime.now().isoformat()
+        }
+
+    async def _find_competitors(self, company_name: str, industry: str) -> List[CompetitorProfile]:
+        """Find and identify key competitors."""
+
+        agent = Agent(
+            task=f"""
+            Research and identify the top 10 competitors of {company_name} in the {industry} industry.
+
+            Search across:
+            1. Google search for "{company_name} competitors"
+            2. Industry analysis sites
+            3. Business comparison platforms
+            4. Market research reports (freely available)
+
+            For each competitor, extract:
+            - Company name
+            - Website URL
+            - Primary industry focus
+            - Key product/service areas
+            - Company size (if available)
+
+            Return as JSON array of competitor profiles.
+            Focus on direct competitors with similar target markets.
+            """,
+            llm=self.llm,
+            browser_config=self.config,
+            max_steps=100
+        )
+
+        result = await agent.run()
+
+        if result.success:
+            try:
+                competitors_data = json.loads(result.final_result)
+                return [
+                    CompetitorProfile(
+                        name=comp["name"],
+                        website=comp["website"],
+                        industry=comp.get("industry", industry),
+                        focus_areas=comp.get("focus_areas", [])
+                    )
+                    for comp in competitors_data
+                ]
+            except (json.JSONDecodeError, KeyError):
+                return []
+
+        return []
+
+    async def _analyze_single_competitor(self,
+                                       competitor: CompetitorProfile,
+                                       focus_areas: List[str]) -> Dict:
+        """Analyze a single competitor in detail."""
+
+        agent = Agent(
+            task=f"""
+            Conduct a comprehensive analysis of {competitor.name} ({competitor.website}).
+
+            Research and extract information about:
+
+            1. Company Overview:
+               - Business model
+               - Target market
+               - Company size and stage
+               - Funding/revenue (if public)
+
+            2. Products/Services:
+               - Main offerings
+               - Pricing strategy (if available)
+               - Key features and differentiators
+               - Product roadmap hints
+
+            3. Marketing & Positioning:
+               - Value proposition
+               - Brand messaging
+               - Target customer segments
+               - Marketing channels used
+
+            4. Technology & Innovation:
+               - Technology stack (if discernible)
+               - Recent innovations
+               - Patents or IP (if mentioned)
+
+            5. Strengths & Weaknesses:
+               - Competitive advantages
+               - Potential vulnerabilities
+               - Market position
+
+            Focus particularly on these areas: {', '.join(focus_areas)}
+
+            Explore:
+            - Company website thoroughly
+            - About page, products, pricing
+            - Blog posts and news
+            - Social media presence
+            - Customer reviews/testimonials
+
+            Return detailed analysis as structured JSON.
+            """,
+            llm=self.llm,
+            browser_config=self.config,
+            max_steps=150
+        )
+
+        result = await agent.run()
+
+        analysis_data = {
+            "competitor": competitor.name,
+            "website": competitor.website,
+            "analysis_success": result.success,
+            "analysis": result.final_result if result.success else "Analysis failed"
+        }
+
+        return analysis_data
+
+    async def _generate_competitive_insights(self,
+                                           analyses: List[Dict],
+                                           focus_areas: List[str]) -> Dict:
+        """Generate strategic insights from competitive analysis."""
+
+        agent = Agent(
+            task=f"""
+            Based on this competitive analysis data:
+            {json.dumps(analyses, indent=2)}
+
+            Generate strategic insights focusing on:
+            {', '.join(focus_areas)}
+
+            Provide analysis in these categories:
+
+            1. Market Positioning:
+               - Where competitors position themselves
+               - Market gaps identified
+               - Positioning opportunities
+
+            2. Feature Comparison:
+               - Common features across competitors
+               - Unique differentiators
+               - Feature gaps in the market
+
+            3. Pricing Insights:
+               - Pricing models used
+               - Price ranges observed
+               - Value propositions vs pricing
+
+            4. Technology Trends:
+               - Technology choices
+               - Innovation directions
+               - Technical advantages/disadvantages
+
+            5. Strategic Recommendations:
+               - Competitive differentiation opportunities
+               - Market entry strategies
+               - Areas for innovation
+               - Potential partnerships or acquisition targets
+
+            Return as structured JSON with actionable insights.
+            """,
+            llm=self.llm,
+            max_steps=30
+        )
+
+        result = await agent.run()
+
+        if result.success:
+            try:
+                return json.loads(result.final_result)
+            except json.JSONDecodeError:
+                return {"raw_insights": result.final_result}
+
+        return {"error": "Failed to generate insights"}
+
+# Usage Example
+async def main():
+    analyzer = CompetitiveAnalysisTool()
+
+    # Analyze competitive landscape
+    analysis = await analyzer.analyze_competitor_landscape(
+        company_name="YourStartup",
+        industry="AI-powered browser automation",
+        focus_areas=[
+            "pricing models",
+            "AI capabilities",
+            "developer experience",
+            "enterprise features",
+            "integration options"
+        ]
+    )
+
+    # Save complete analysis
+    with open("competitive_analysis.json", "w") as f:
+        json.dump(analysis, f, indent=2, default=str)
+
+    print(f"Found {analysis['competitors_found']} competitors")
+    print("Key insights:")
+    if "insights" in analysis and "strategic_recommendations" in analysis["insights"]:
+        for recommendation in analysis["insights"]["strategic_recommendations"]:
+            print(f"- {recommendation}")
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+These comprehensive automation patterns provide robust, production-ready code examples for common browser automation scenarios. Each pattern includes error handling, structured data models, and scalable architectures suitable for real-world applications.

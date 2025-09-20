@@ -1,0 +1,860 @@
+---
+title: "Troubleshooting Guide"
+description: "Comprehensive troubleshooting guide for browser-use issues and solutions"
+icon: "wrench"
+---
+
+# Browser-Use Troubleshooting Guide
+
+This comprehensive guide covers common issues, error resolution strategies, and performance optimization techniques for browser-use deployments.
+
+## Common Installation Issues
+
+### Python Version Compatibility
+
+<Error>
+**Error:** `ModuleNotFoundError: No module named 'browser_use'`
+</Error>
+
+**Cause:** Python version incompatibility or incomplete installation.
+
+**Solutions:**
+
+<CodeGroup>
+```bash Check Python Version
+python --version
+# Should be 3.11 or higher
+```
+
+```bash Reinstall with Correct Python
+# Using uv (recommended)
+uv pip install --upgrade browser-use
+
+# Using pip with specific Python version
+python3.11 -m pip install browser-use
+```
+
+```bash Virtual Environment Setup
+# Create virtual environment with Python 3.11+
+python3.11 -m venv browser_use_env
+source browser_use_env/bin/activate  # Linux/Mac
+# or
+browser_use_env\Scripts\activate  # Windows
+
+pip install browser-use
+```
+</CodeGroup>
+
+### Browser Installation Issues
+
+<Error>
+**Error:** `Chromium not found` or `Browser executable not found`
+</Error>
+
+**Solutions:**
+
+<CodeGroup>
+```bash Install Chromium via Playwright
+uvx playwright install chromium --with-deps --no-shell
+```
+
+```bash Manual Chrome/Chromium Installation
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install chromium-browser
+
+# macOS
+brew install chromium
+
+# Or download from official sources
+```
+
+```python Specify Custom Browser Path
+from browser_use import BrowserConfig
+
+config = BrowserConfig(
+    browser_executable_path="/path/to/your/chrome"
+)
+```
+</CodeGroup>
+
+### Dependencies Issues
+
+<Error>
+**Error:** Various dependency-related import errors
+</Error>
+
+**Solutions:**
+
+<CodeGroup>
+```bash Clean Installation
+pip uninstall browser-use
+pip cache purge
+uv pip install browser-use
+```
+
+```bash Install with All Dependencies
+uv pip install browser-use[all]
+# or
+pip install "browser-use[cli,dev]"
+```
+</CodeGroup>
+
+## Browser Session Issues
+
+### Session Startup Problems
+
+<Error>
+**Error:** `Failed to start browser session` or `Connection refused`
+</Error>
+
+**Diagnosis and Solutions:**
+
+<CodeGroup>
+```python Debug Browser Startup
+import logging
+from browser_use import BrowserSession, BrowserConfig
+
+# Enable debug logging
+logging.basicConfig(level=logging.DEBUG)
+
+config = BrowserConfig(
+    headless=False,  # Show browser for debugging
+    debug_mode=True
+)
+
+try:
+    session = BrowserSession(config=config)
+    await session.start()
+    print("Browser started successfully")
+except Exception as e:
+    print(f"Startup failed: {e}")
+```
+
+```python Check System Resources
+import psutil
+
+# Check available memory
+memory = psutil.virtual_memory()
+print(f"Available memory: {memory.available / (1024**3):.2f} GB")
+
+# Check CPU usage
+cpu_percent = psutil.cpu_percent(interval=1)
+print(f"CPU usage: {cpu_percent}%")
+
+# Ensure sufficient resources before starting browser
+if memory.available < 1024**3:  # Less than 1GB
+    print("Warning: Low memory available")
+```
+
+```bash Linux: Check Display Environment
+# For headless environments
+export DISPLAY=:99
+Xvfb :99 -screen 0 1920x1080x24 &
+
+# Or use headless mode
+```
+</CodeGroup>
+
+### Session Crashes
+
+<Error>
+**Error:** Browser crashes during execution
+</Error>
+
+**Common Causes & Solutions:**
+
+1. **Memory Issues:**
+```python
+config = BrowserConfig(
+    chrome_args=[
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--max_old_space_size=4096"
+    ]
+)
+```
+
+2. **Display Issues (Linux):**
+```python
+config = BrowserConfig(
+    headless=True,  # Use headless in server environments
+    chrome_args=["--no-sandbox", "--disable-setuid-sandbox"]
+)
+```
+
+3. **Timeout Issues:**
+```python
+config = BrowserConfig(
+    timeout=60000,  # Increase timeout
+    chrome_args=["--disable-web-security", "--disable-features=TranslateUI"]
+)
+```
+
+## Navigation and Element Issues
+
+### Element Not Found Errors
+
+<Error>
+**Error:** `Element with index X not found` or `ElementNotFoundError`
+</Error>
+
+**Debugging Steps:**
+
+<CodeGroup>
+```python Debug Element Detection
+from browser_use import Agent, ChatOpenAI
+
+agent = Agent(
+    task="Get page state and show all available elements",
+    llm=ChatOpenAI(model="gpt-4o-mini")
+)
+
+# Get current page state
+result = await agent.run_step()  # Single step to get state
+print("Available elements:", result.observation)
+```
+
+```python Wait for Elements to Load
+from browser_use.tools.views import NoParamsAction
+import asyncio
+
+# Wait for page to fully load
+await asyncio.sleep(2)
+
+# Get page state multiple times
+for i in range(3):
+    state = await agent.get_page_state()
+    print(f"Attempt {i+1}: Found {len(state.elements)} elements")
+    await asyncio.sleep(1)
+```
+
+```python Handle Dynamic Content
+agent = Agent(
+    task="""
+    Wait for the page to fully load, then:
+    1. Take a screenshot
+    2. Get page state
+    3. If expected elements are not found, scroll down and wait
+    4. Retry getting page state
+    5. Report all available clickable elements
+    """,
+    llm=llm,
+    max_steps=20
+)
+```
+</CodeGroup>
+
+### Navigation Failures
+
+<Error>
+**Error:** `Navigation failed` or pages not loading
+</Error>
+
+**Solutions:**
+
+<CodeGroup>
+```python Network Troubleshooting
+from browser_use import BrowserConfig
+
+config = BrowserConfig(
+    chrome_args=[
+        "--disable-web-security",
+        "--ignore-certificate-errors",
+        "--disable-features=VizDisplayCompositor"
+    ],
+    timeout=45000  # Increase timeout
+)
+```
+
+```python Handle Redirects and Popups
+agent = Agent(
+    task="""
+    Navigate to the URL and handle any:
+    1. Cookie consent popups
+    2. Age verification dialogs
+    3. Newsletter signup modals
+    4. Redirect pages
+
+    Dismiss any blocking elements before proceeding.
+    """,
+    llm=llm
+)
+```
+
+```python Retry Navigation with Fallbacks
+async def robust_navigation(url: str, max_retries: int = 3):
+    for attempt in range(max_retries):
+        try:
+            agent = Agent(
+                task=f"Navigate to {url} and confirm successful loading",
+                llm=llm,
+                max_steps=10
+            )
+            result = await agent.run()
+
+            if result.success:
+                return result
+
+        except Exception as e:
+            print(f"Navigation attempt {attempt + 1} failed: {e}")
+            if attempt == max_retries - 1:
+                raise
+            await asyncio.sleep(2 ** attempt)  # Exponential backoff
+```
+</CodeGroup>
+
+## Performance Issues
+
+### Slow Execution
+
+<Error>
+**Issue:** Browser automation running slowly
+</Error>
+
+**Optimization Strategies:**
+
+<CodeGroup>
+```python Performance-Optimized Configuration
+from browser_use import BrowserConfig
+
+# Optimized config for speed
+config = BrowserConfig(
+    headless=True,  # Faster than headed mode
+    chrome_args=[
+        "--no-images",  # Block images
+        "--disable-javascript",  # Only if JS not needed
+        "--disable-plugins",
+        "--disable-java",
+        "--disable-extensions",
+        "--no-first-run",
+        "--disable-default-apps",
+        "--disable-dev-shm-usage",
+        "--no-sandbox"
+    ]
+)
+```
+
+```python Resource Blocking
+async def setup_performance_optimizations(session):
+    # Block unnecessary resources
+    await session.block_resources([
+        "image", "media", "font", "stylesheet"  # Block as needed
+    ])
+
+    # Disable JavaScript if not needed
+    await session.set_javascript_enabled(False)
+
+    # Set aggressive cache policy
+    await session.set_cache_enabled(True)
+```
+
+```python Concurrent Execution
+import asyncio
+from browser_use import Agent
+
+async def parallel_tasks(urls: list):
+    semaphore = asyncio.Semaphore(3)  # Limit concurrency
+
+    async def process_url(url):
+        async with semaphore:
+            agent = Agent(
+                task=f"Extract data from {url}",
+                llm=llm,
+                browser_config=optimized_config
+            )
+            return await agent.run()
+
+    results = await asyncio.gather(*[
+        process_url(url) for url in urls
+    ])
+    return results
+```
+</CodeGroup>
+
+### Memory Issues
+
+<Error>
+**Error:** `Out of memory` or browser crashes due to memory
+</Error>
+
+**Memory Management:**
+
+<CodeGroup>
+```python Memory-Conscious Configuration
+config = BrowserConfig(
+    chrome_args=[
+        "--memory-pressure-off",
+        "--max_old_space_size=2048",
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-software-rasterizer"
+    ]
+)
+```
+
+```python Session Cleanup
+class ManagedBrowserService:
+    def __init__(self):
+        self.session_count = 0
+        self.max_sessions = 5
+
+    async def create_managed_session(self):
+        if self.session_count >= self.max_sessions:
+            # Clean up old sessions
+            await self.cleanup_sessions()
+
+        session = BrowserSession(config=memory_config)
+        await session.start()
+        self.session_count += 1
+        return session
+
+    async def cleanup_sessions(self):
+        # Implement session cleanup logic
+        pass
+```
+
+```python Monitor Memory Usage
+import psutil
+
+def check_memory_usage():
+    memory = psutil.virtual_memory()
+    if memory.percent > 80:
+        print(f"High memory usage: {memory.percent}%")
+        return False
+    return True
+
+# Use before starting new browser sessions
+if check_memory_usage():
+    session = BrowserSession()
+    await session.start()
+```
+</CodeGroup>
+
+## LLM and AI Issues
+
+### LLM Response Errors
+
+<Error>
+**Error:** `Invalid JSON response` or `LLM parsing errors`
+</Error>
+
+**Solutions:**
+
+<CodeGroup>
+```python Robust LLM Configuration
+from browser_use.llm import ChatOpenAI
+
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    temperature=0.1,  # Lower temperature for consistency
+    max_tokens=2000,  # Adequate token limit
+    timeout=60  # Increase timeout
+)
+```
+
+```python Response Validation
+async def validate_llm_response(agent_result):
+    if not agent_result.success:
+        print(f"Agent failed: {agent_result.error}")
+        return False
+
+    try:
+        # Try to parse if expecting JSON
+        json.loads(agent_result.final_result)
+        return True
+    except json.JSONDecodeError:
+        print("Invalid JSON response")
+        return False
+```
+
+```python Retry with Different Models
+async def llm_with_fallback(task: str):
+    models = ["gpt-4o-mini", "gpt-3.5-turbo", "claude-3-sonnet"]
+
+    for model in models:
+        try:
+            llm = ChatOpenAI(model=model)
+            agent = Agent(task=task, llm=llm)
+            result = await agent.run()
+
+            if result.success:
+                return result
+
+        except Exception as e:
+            print(f"Model {model} failed: {e}")
+            continue
+
+    raise Exception("All LLM models failed")
+```
+</CodeGroup>
+
+### Vision/Screenshot Issues
+
+<Error>
+**Error:** `Screenshot failed` or vision capabilities not working
+</Error>
+
+**Solutions:**
+
+<CodeGroup>
+```python Screenshot Debugging
+from browser_use import Agent
+
+agent = Agent(
+    task="Take a screenshot and describe what you see",
+    llm=llm,
+    use_vision=True,
+    browser_config=BrowserConfig(headless=False)
+)
+
+result = await agent.run()
+print("Vision result:", result.final_result)
+```
+
+```python Alternative Vision Setup
+config = BrowserConfig(
+    headless=True,
+    viewport_width=1920,
+    viewport_height=1080,
+    chrome_args=["--force-device-scale-factor=1"]
+)
+```
+</CodeGroup>
+
+## MCP Integration Issues
+
+### MCP Server Connection Problems
+
+<Error>
+**Error:** `MCP server connection failed` or tool call errors
+</Error>
+
+**Debugging Steps:**
+
+<CodeGroup>
+```bash Test MCP Server Directly
+# Test the MCP server standalone
+uvx browser-use[cli] --mcp
+
+# Check if server starts without errors
+```
+
+```json Claude Desktop Configuration Debugging
+{
+  "mcpServers": {
+    "browser-use": {
+      "command": "uvx",
+      "args": ["browser-use[cli]", "--mcp"],
+      "env": {
+        "OPENAI_API_KEY": "your-key",
+        "BROWSER_USE_DEBUG": "true",
+        "BROWSER_USE_HEADLESS": "true"
+      }
+    }
+  }
+}
+```
+
+```python Custom MCP Client Testing
+from browser_use.mcp.client import MCPClient
+
+async def test_mcp_connection():
+    client = MCPClient(
+        server_name="browser-test",
+        command="uvx",
+        args=["browser-use[cli]", "--mcp"]
+    )
+
+    try:
+        await client.connect()
+        print("MCP connection successful")
+
+        # Test a simple tool call
+        result = await client.call_tool("browser_navigate", {
+            "url": "https://example.com"
+        })
+        print("Tool call successful:", result)
+
+    except Exception as e:
+        print(f"MCP error: {e}")
+    finally:
+        await client.disconnect()
+```
+</CodeGroup>
+
+## Environment-Specific Issues
+
+### Docker/Container Issues
+
+<Error>
+**Error:** Browser fails to start in containers
+</Error>
+
+**Container Solutions:**
+
+<CodeGroup>
+```dockerfile Optimized Dockerfile
+FROM python:3.11-slim
+
+# Install system dependencies for Chrome
+RUN apt-get update && apt-get install -y \
+    chromium \
+    chromium-driver \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Chrome path
+ENV BROWSER_USE_BROWSER_PATH=/usr/bin/chromium
+ENV BROWSER_USE_HEADLESS=true
+
+# Install Python packages
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+WORKDIR /app
+COPY . .
+
+# Start with Xvfb for display
+CMD ["sh", "-c", "Xvfb :99 -screen 0 1920x1080x24 & python app.py"]
+```
+
+```python Container-Optimized Config
+config = BrowserConfig(
+    headless=True,
+    chrome_args=[
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-web-security",
+        "--disable-features=VizDisplayCompositor"
+    ]
+)
+```
+</CodeGroup>
+
+### CI/CD Pipeline Issues
+
+<Error>
+**Error:** Tests failing in CI/CD environments
+</Error>
+
+**CI/CD Solutions:**
+
+<CodeGroup>
+```yaml GitHub Actions Configuration
+name: Browser Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip install browser-use
+        uvx playwright install chromium --with-deps
+
+    - name: Run tests
+      env:
+        BROWSER_USE_HEADLESS: true
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      run: |
+        export DISPLAY=:99
+        Xvfb :99 -screen 0 1920x1080x24 &
+        python -m pytest tests/
+```
+
+```python CI-Optimized Test Configuration
+import os
+
+def get_ci_browser_config():
+    is_ci = os.getenv('CI') == 'true'
+
+    config = BrowserConfig(
+        headless=True,
+        chrome_args=[
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage"
+        ]
+    )
+
+    if is_ci:
+        config.chrome_args.extend([
+            "--disable-gpu",
+            "--disable-web-security",
+            "--no-first-run"
+        ])
+
+    return config
+```
+</CodeGroup>
+
+## Debugging Tools and Techniques
+
+### Debug Mode
+
+<CodeGroup>
+```python Enable Comprehensive Debugging
+import logging
+from browser_use import Agent, BrowserConfig
+
+# Set up detailed logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+config = BrowserConfig(
+    headless=False,  # Show browser
+    debug_mode=True,
+    chrome_args=["--remote-debugging-port=9222"]
+)
+
+agent = Agent(
+    task="Debug task execution",
+    llm=llm,
+    browser_config=config
+)
+```
+
+```python Step-by-Step Execution
+async def debug_step_by_step(task: str):
+    agent = Agent(task=task, llm=llm)
+
+    step_count = 0
+    while not agent.is_done and step_count < 10:
+        print(f"\n--- Step {step_count + 1} ---")
+
+        step_result = await agent.run_step()
+
+        print(f"Action: {step_result.action_taken}")
+        print(f"Observation: {step_result.observation}")
+
+        if step_result.error:
+            print(f"Error: {step_result.error}")
+            break
+
+        step_count += 1
+
+        # Wait for manual review
+        input("Press Enter to continue...")
+
+    return agent.get_final_result()
+```
+</CodeGroup>
+
+### Performance Monitoring
+
+<CodeGroup>
+```python Monitor Resource Usage
+import psutil
+import time
+
+class PerformanceMonitor:
+    def __init__(self):
+        self.start_time = None
+        self.start_memory = None
+
+    def start_monitoring(self):
+        self.start_time = time.time()
+        self.start_memory = psutil.virtual_memory().used
+
+    def get_metrics(self):
+        current_time = time.time()
+        current_memory = psutil.virtual_memory().used
+
+        return {
+            "execution_time": current_time - self.start_time,
+            "memory_used": (current_memory - self.start_memory) / (1024**2),  # MB
+            "cpu_percent": psutil.cpu_percent(),
+            "memory_percent": psutil.virtual_memory().percent
+        }
+
+# Usage
+monitor = PerformanceMonitor()
+monitor.start_monitoring()
+
+# Run your browser automation
+result = await agent.run()
+
+metrics = monitor.get_metrics()
+print(f"Performance metrics: {metrics}")
+```
+</CodeGroup>
+
+## Getting Help
+
+### Collecting Debug Information
+
+When reporting issues, collect this information:
+
+<CodeGroup>
+```python System Information Script
+import sys
+import platform
+import subprocess
+from browser_use import __version__
+
+def collect_debug_info():
+    info = {
+        "browser_use_version": __version__,
+        "python_version": sys.version,
+        "platform": platform.platform(),
+        "architecture": platform.architecture(),
+    }
+
+    try:
+        chrome_version = subprocess.check_output([
+            "google-chrome", "--version"
+        ], text=True)
+        info["chrome_version"] = chrome_version.strip()
+    except:
+        info["chrome_version"] = "Not found"
+
+    return info
+
+print(json.dumps(collect_debug_info(), indent=2))
+```
+
+```bash Logs Collection
+# Collect recent logs
+journalctl -u your-service --since "1 hour ago" > browser_use_logs.txt
+
+# Chrome debug logs (if using debug port)
+curl http://localhost:9222/json > chrome_debug.json
+
+# System resource info
+free -h > system_memory.txt
+df -h > system_disk.txt
+```
+</CodeGroup>
+
+### Community Resources
+
+- **GitHub Issues**: [browser-use/browser-use/issues](https://github.com/browser-use/browser-use/issues)
+- **Discord Community**: [Browser-Use Discord](https://link.browser-use.com/discord)
+- **Documentation**: [docs.browser-use.com](https://docs.browser-use.com)
+
+### Creating Effective Bug Reports
+
+Include:
+1. **Environment details** (OS, Python version, browser-use version)
+2. **Minimal reproducible example**
+3. **Expected vs actual behavior**
+4. **Error messages and logs**
+5. **System resource information**
+6. **Screenshots/videos** (for UI issues)
+
+This comprehensive troubleshooting guide should help resolve most common issues with browser-use deployments.

@@ -1,0 +1,506 @@
+---
+title: "Session Management API"
+description: "Browser session lifecycle and configuration management"
+icon: "window"
+---
+
+# Session Management API
+
+The Session Management API controls browser sessions, tabs, configurations, and persistent states. This is essential for managing browser lifecycle, maintaining user sessions, and configuring browser behavior.
+
+## BrowserSession Class
+
+### Overview
+
+The `BrowserSession` class manages the browser lifecycle and provides low-level browser control capabilities.
+
+```python
+from browser_use.browser import BrowserSession, BrowserConfig
+
+session = BrowserSession(
+    config=BrowserConfig(
+        headless=False,
+        viewport_width=1920,
+        viewport_height=1080
+    )
+)
+
+await session.start()
+# Use session...
+await session.close()
+```
+
+## Browser Configuration
+
+### BrowserConfig
+
+Configure browser behavior and settings.
+
+<ParamField path="headless" type="boolean" default="True">
+  Run browser without GUI (True) or with visible UI (False)
+</ParamField>
+
+<ParamField path="viewport_width" type="integer" default="1280">
+  Browser viewport width in pixels
+</ParamField>
+
+<ParamField path="viewport_height" type="integer" default="720">
+  Browser viewport height in pixels
+</ParamField>
+
+<ParamField path="user_data_dir" type="string" default="None">
+  Path to Chrome user data directory for persistent sessions
+</ParamField>
+
+<ParamField path="browser_type" type="string" default="chromium">
+  Browser engine to use ("chromium", "firefox", "webkit")
+</ParamField>
+
+<ParamField path="stealth_mode" type="boolean" default="False">
+  Enable stealth mode to avoid detection by anti-bot systems
+</ParamField>
+
+<ParamField path="disable_security" type="boolean" default="False">
+  Disable browser security features (CORS, CSP, etc.)
+</ParamField>
+
+<ParamField path="extensions_enabled" type="boolean" default="True">
+  Enable browser extensions (ad blockers, etc.)
+</ParamField>
+
+<ParamField path="download_dir" type="string" default="None">
+  Custom download directory path
+</ParamField>
+
+<ParamField path="proxy" type="string" default="None">
+  Proxy server configuration (format: "host:port")
+</ParamField>
+
+<ParamField path="timeout" type="integer" default="30000">
+  Default timeout for browser operations (milliseconds)
+</ParamField>
+
+<CodeGroup>
+```python Full Configuration
+from browser_use.browser import BrowserConfig
+
+config = BrowserConfig(
+    headless=False,
+    viewport_width=1920,
+    viewport_height=1080,
+    user_data_dir="/path/to/chrome/profile",
+    browser_type="chromium",
+    stealth_mode=True,
+    disable_security=False,
+    extensions_enabled=True,
+    download_dir="/custom/downloads",
+    proxy="proxy.example.com:8080",
+    timeout=45000
+)
+```
+
+```json MCP Configuration
+{
+  "mcpServers": {
+    "browser-use": {
+      "command": "uvx",
+      "args": ["browser-use[cli]", "--mcp"],
+      "env": {
+        "BROWSER_USE_HEADLESS": "false",
+        "BROWSER_USE_VIEWPORT_WIDTH": "1920",
+        "BROWSER_USE_VIEWPORT_HEIGHT": "1080",
+        "BROWSER_USE_STEALTH": "true",
+        "BROWSER_USE_ALLOWED_DOMAINS": "*.example.com,trusted-site.com"
+      }
+    }
+  }
+}
+```
+</CodeGroup>
+
+## Session Lifecycle
+
+### Starting a Session
+
+```python
+async def start_browser_session():
+    config = BrowserConfig(headless=False)
+    session = BrowserSession(config=config)
+
+    # Start the browser
+    await session.start()
+
+    # Session is now ready for use
+    return session
+```
+
+### Closing a Session
+
+```python
+async def cleanup_session(session: BrowserSession):
+    # Close all tabs and browser
+    await session.close()
+
+    # Or close gracefully with cleanup
+    await session.close_gracefully()
+```
+
+### Context Manager Usage
+
+```python
+async def use_session_context():
+    config = BrowserConfig(headless=True)
+
+    async with BrowserSession(config=config) as session:
+        # Browser automatically started
+        await session.navigate("https://example.com")
+        # Browser automatically closed when exiting context
+```
+
+## Tab Management
+
+### Creating New Tabs
+
+```python
+async def create_tabs(session: BrowserSession):
+    # Open new blank tab
+    tab_id = await session.new_tab()
+
+    # Open new tab with URL
+    tab_id = await session.new_tab("https://example.com")
+
+    return tab_id
+```
+
+### Switching Between Tabs
+
+```python
+async def manage_tabs(session: BrowserSession):
+    # Get all open tabs
+    tabs = await session.list_tabs()
+
+    for tab in tabs:
+        print(f"Tab {tab.id}: {tab.title} - {tab.url}")
+
+    # Switch to specific tab
+    await session.switch_to_tab(tabs[0].id)
+
+    # Switch to tab by URL pattern
+    tab_id = await session.find_tab_by_url("example.com")
+    if tab_id:
+        await session.switch_to_tab(tab_id)
+```
+
+### Closing Tabs
+
+```python
+async def close_tabs(session: BrowserSession):
+    tabs = await session.list_tabs()
+
+    # Close specific tab
+    await session.close_tab(tabs[0].id)
+
+    # Close all tabs except current
+    await session.close_other_tabs()
+
+    # Close all tabs
+    await session.close_all_tabs()
+```
+
+## Persistent Sessions
+
+### User Profiles
+
+```python
+async def use_persistent_profile():
+    # Create session with persistent user data
+    config = BrowserConfig(
+        user_data_dir="/path/to/chrome/profile",
+        headless=False
+    )
+
+    session = BrowserSession(config=config)
+    await session.start()
+
+    # Login state, cookies, and extensions persist
+    # across session restarts
+```
+
+### Session State Management
+
+```python
+async def save_session_state(session: BrowserSession):
+    # Save current session state
+    state = await session.get_session_state()
+
+    # Save to file
+    with open("session_state.json", "w") as f:
+        json.dump(state, f)
+
+async def restore_session_state(session: BrowserSession):
+    # Load session state
+    with open("session_state.json", "r") as f:
+        state = json.load(f)
+
+    # Restore session
+    await session.restore_session_state(state)
+```
+
+## Security & Isolation
+
+### Domain Restrictions
+
+```python
+# Restrict browser to specific domains
+config = BrowserConfig(
+    allowed_domains=["*.example.com", "trusted-site.com"],
+    blocked_domains=["ads.com", "malicious-site.com"]
+)
+
+session = BrowserSession(config=config)
+```
+
+### Sandboxed Sessions
+
+```python
+async def create_sandboxed_session():
+    config = BrowserConfig(
+        user_data_dir=None,  # No persistent data
+        disable_security=False,  # Keep security enabled
+        extensions_enabled=False,  # No extensions
+        stealth_mode=True  # Avoid detection
+    )
+
+    session = BrowserSession(config=config)
+    # This session is isolated and leaves no traces
+```
+
+## Advanced Configuration
+
+### Custom Chrome Arguments
+
+```python
+from browser_use.browser import BrowserConfig
+
+config = BrowserConfig(
+    chrome_args=[
+        "--disable-web-security",
+        "--disable-features=VizDisplayCompositor",
+        "--no-sandbox",
+        "--disable-dev-shm-usage"
+    ]
+)
+```
+
+### Extension Management
+
+```python
+async def manage_extensions(session: BrowserSession):
+    # Load custom extension
+    await session.load_extension("/path/to/extension")
+
+    # Configure uBlock Origin (built-in)
+    await session.configure_adblocker(
+        enabled=True,
+        whitelist=["trusted-ads.com"]
+    )
+
+    # List installed extensions
+    extensions = await session.list_extensions()
+    for ext in extensions:
+        print(f"Extension: {ext.name} - Enabled: {ext.enabled}")
+```
+
+### Network Configuration
+
+```python
+async def configure_network(session: BrowserSession):
+    # Set up proxy
+    await session.set_proxy("proxy.example.com:8080")
+
+    # Configure user agent
+    await session.set_user_agent("Custom Bot 1.0")
+
+    # Set custom headers
+    await session.set_headers({
+        "Authorization": "Bearer token123",
+        "Custom-Header": "value"
+    })
+
+    # Enable request interception
+    await session.enable_request_interception()
+```
+
+## Event Handling
+
+### Browser Events
+
+```python
+async def handle_browser_events(session: BrowserSession):
+    # Register event handlers
+    session.on("tab_created", handle_new_tab)
+    session.on("navigation_completed", handle_navigation)
+    session.on("download_started", handle_download)
+
+    # Custom event handlers
+    async def handle_new_tab(event):
+        print(f"New tab created: {event.tab_id}")
+
+    async def handle_navigation(event):
+        print(f"Navigated to: {event.url}")
+
+    async def handle_download(event):
+        print(f"Download started: {event.filename}")
+```
+
+### Error Events
+
+```python
+async def handle_errors(session: BrowserSession):
+    session.on("error", handle_session_error)
+    session.on("crash", handle_browser_crash)
+
+    async def handle_session_error(error):
+        print(f"Session error: {error.message}")
+        # Implement recovery logic
+
+    async def handle_browser_crash(event):
+        print("Browser crashed - restarting...")
+        await session.restart()
+```
+
+## Performance Optimization
+
+### Resource Management
+
+```python
+async def optimize_performance(session: BrowserSession):
+    # Disable images for faster loading
+    await session.set_images_enabled(False)
+
+    # Block unnecessary resources
+    await session.block_resources([
+        "image", "media", "font", "stylesheet"
+    ])
+
+    # Set memory limits
+    await session.set_memory_limit("512MB")
+
+    # Configure cache settings
+    await session.configure_cache(
+        enabled=True,
+        max_size="100MB"
+    )
+```
+
+### Concurrent Sessions
+
+```python
+async def run_parallel_sessions():
+    configs = [
+        BrowserConfig(user_data_dir=f"/tmp/profile_{i}")
+        for i in range(5)
+    ]
+
+    sessions = []
+    for config in configs:
+        session = BrowserSession(config=config)
+        await session.start()
+        sessions.append(session)
+
+    # Run tasks in parallel
+    tasks = [
+        process_site(session, f"https://site{i}.com")
+        for i, session in enumerate(sessions)
+    ]
+
+    results = await asyncio.gather(*tasks)
+
+    # Cleanup
+    for session in sessions:
+        await session.close()
+```
+
+## Debugging & Monitoring
+
+### Debug Mode
+
+```python
+async def debug_session():
+    config = BrowserConfig(
+        headless=False,  # Show browser for debugging
+        debug_mode=True,  # Enable debug logging
+        devtools=True,   # Open DevTools
+        slow_mo=1000     # Slow down actions (ms)
+    )
+
+    session = BrowserSession(config=config)
+    await session.start()
+
+    # Debug information available
+    debug_info = await session.get_debug_info()
+    print(f"Session ID: {debug_info.session_id}")
+    print(f"Browser version: {debug_info.browser_version}")
+```
+
+### Session Monitoring
+
+```python
+async def monitor_session(session: BrowserSession):
+    # Get session metrics
+    metrics = await session.get_metrics()
+    print(f"Memory usage: {metrics.memory_usage}")
+    print(f"CPU usage: {metrics.cpu_usage}")
+    print(f"Active tabs: {metrics.tab_count}")
+
+    # Monitor network activity
+    network_logs = await session.get_network_logs()
+    for log in network_logs:
+        print(f"{log.method} {log.url} - {log.status}")
+```
+
+## MCP Integration
+
+### MCP Session Configuration
+
+When using browser-use as an MCP server, sessions are managed automatically:
+
+```json
+{
+  "mcpServers": {
+    "browser-use": {
+      "command": "uvx",
+      "args": ["browser-use[cli]", "--mcp"],
+      "env": {
+        "BROWSER_USE_HEADLESS": "false",
+        "BROWSER_USE_USER_DATA_DIR": "${HOME}/.config/browseruse/profiles/default",
+        "BROWSER_USE_STEALTH": "true",
+        "BROWSER_USE_TIMEOUT": "30000"
+      }
+    }
+  }
+}
+```
+
+### Session Persistence in MCP
+
+```python
+# Sessions persist across MCP tool calls
+# First call creates session
+await mcp_client.call_tool("browser_navigate", {"url": "https://example.com"})
+
+# Subsequent calls reuse the same session
+await mcp_client.call_tool("browser_click", {"index": 1})
+await mcp_client.call_tool("browser_type", {"index": 2, "text": "search query"})
+```
+
+## Best Practices
+
+1. **Use context managers** for automatic cleanup
+2. **Configure appropriate timeouts** for your use case
+3. **Use persistent profiles** for tasks requiring login state
+4. **Enable stealth mode** for sites with bot detection
+5. **Monitor resource usage** in long-running sessions
+6. **Handle errors gracefully** with retry logic
+7. **Use domain restrictions** for security
+8. **Optimize performance** by blocking unnecessary resources

@@ -1,0 +1,1424 @@
+---
+title: "Best Practices"
+description: "Comprehensive best practices for efficient, secure, and reliable browser automation"
+icon: "star"
+---
+
+# Browser-Use Best Practices
+
+This guide provides comprehensive best practices for building efficient, secure, and reliable browser automation systems with browser-use.
+
+## Architecture & Design Patterns
+
+### 1. Modular Design
+
+Structure your automation code for maintainability and reusability:
+
+<CodeGroup>
+```python Modular Service Architecture
+from abc import ABC, abstractmethod
+from typing import Dict, List, Optional
+from browser_use import Agent, BrowserConfig, ChatOpenAI
+
+class BrowserAutomationService(ABC):
+    """Base class for browser automation services."""
+
+    def __init__(self, config: Optional[BrowserConfig] = None):
+        self.config = config or self._get_default_config()
+        self.llm = self._get_llm()
+
+    @abstractmethod
+    async def execute(self, **kwargs) -> Dict:
+        """Execute the main automation task."""
+        pass
+
+    def _get_default_config(self) -> BrowserConfig:
+        return BrowserConfig(
+            headless=True,
+            stealth_mode=True,
+            timeout=30000
+        )
+
+    def _get_llm(self):
+        return ChatOpenAI(model="gpt-4o-mini", temperature=0.1)
+
+class DataExtractionService(BrowserAutomationService):
+    """Specialized service for data extraction tasks."""
+
+    async def execute(self, url: str, extraction_rules: str) -> Dict:
+        agent = Agent(
+            task=f"Extract data from {url} using rules: {extraction_rules}",
+            llm=self.llm,
+            browser_config=self.config
+        )
+
+        result = await agent.run()
+
+        return {
+            "success": result.success,
+            "data": result.final_result,
+            "metadata": {
+                "url": url,
+                "steps_taken": result.steps_taken,
+                "execution_time": result.execution_time_seconds
+            }
+        }
+
+class FormAutomationService(BrowserAutomationService):
+    """Specialized service for form automation."""
+
+    async def execute(self, form_url: str, form_data: Dict) -> Dict:
+        agent = Agent(
+            task=f"Fill and submit form at {form_url} with data: {form_data}",
+            llm=self.llm,
+            browser_config=self.config
+        )
+
+        result = await agent.run()
+
+        return {
+            "success": result.success,
+            "confirmation": result.final_result,
+            "form_url": form_url
+        }
+```
+</CodeGroup>
+
+### 2. Configuration Management
+
+Centralize configuration for different environments:
+
+<CodeGroup>
+```python Environment-Based Configuration
+import os
+from enum import Enum
+from dataclasses import dataclass
+from browser_use import BrowserConfig
+
+class Environment(Enum):
+    DEVELOPMENT = "development"
+    STAGING = "staging"
+    PRODUCTION = "production"
+
+@dataclass
+class AutomationConfig:
+    environment: Environment
+    llm_model: str
+    max_concurrent_sessions: int
+    browser_config: BrowserConfig
+    retry_attempts: int
+    timeout_seconds: int
+
+class ConfigManager:
+    """Centralized configuration management."""
+
+    @staticmethod
+    def get_config(env: Environment = None) -> AutomationConfig:
+        if env is None:
+            env_str = os.getenv("AUTOMATION_ENV", "development")
+            env = Environment(env_str)
+
+        if env == Environment.DEVELOPMENT:
+            return ConfigManager._get_dev_config()
+        elif env == Environment.STAGING:
+            return ConfigManager._get_staging_config()
+        else:
+            return ConfigManager._get_prod_config()
+
+    @staticmethod
+    def _get_dev_config() -> AutomationConfig:
+        return AutomationConfig(
+            environment=Environment.DEVELOPMENT,
+            llm_model="gpt-4o-mini",
+            max_concurrent_sessions=2,
+            browser_config=BrowserConfig(
+                headless=False,  # Show browser in dev
+                debug_mode=True,
+                stealth_mode=False
+            ),
+            retry_attempts=2,
+            timeout_seconds=60
+        )
+
+    @staticmethod
+    def _get_prod_config() -> AutomationConfig:
+        return AutomationConfig(
+            environment=Environment.PRODUCTION,
+            llm_model="gpt-4o-mini",
+            max_concurrent_sessions=10,
+            browser_config=BrowserConfig(
+                headless=True,
+                stealth_mode=True,
+                chrome_args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu"
+                ]
+            ),
+            retry_attempts=3,
+            timeout_seconds=120
+        )
+
+# Usage
+config = ConfigManager.get_config()
+```
+</CodeGroup>
+
+### 3. Error Handling Strategies
+
+Implement comprehensive error handling with recovery mechanisms:
+
+<CodeGroup>
+```python Robust Error Handling
+import asyncio
+import logging
+from typing import Optional, Callable, Any
+from browser_use import Agent, BrowserError
+from enum import Enum
+
+class ErrorSeverity(Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+class AutomationError(Exception):
+    def __init__(self, message: str, severity: ErrorSeverity, recoverable: bool = True):
+        super().__init__(message)
+        self.severity = severity
+        self.recoverable = recoverable
+
+class ErrorHandler:
+    """Centralized error handling and recovery."""
+
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.error_callbacks = {}
+
+    def register_error_callback(self, error_type: type, callback: Callable):
+        """Register custom error handlers."""
+        self.error_callbacks[error_type] = callback
+
+    async def handle_with_retry(self,
+                               operation: Callable,
+                               max_retries: int = 3,
+                               backoff_factor: float = 2.0) -> Any:
+        """Execute operation with retry logic."""
+
+        last_exception = None
+
+        for attempt in range(max_retries):
+            try:
+                return await operation()
+
+            except BrowserError as e:
+                last_exception = e
+                severity = self._classify_error(e)
+
+                self.logger.warning(
+                    f"Browser error (attempt {attempt + 1}/{max_retries}): {e}"
+                )
+
+                if severity == ErrorSeverity.CRITICAL:
+                    raise AutomationError(
+                        f"Critical browser error: {e}",
+                        severity,
+                        recoverable=False
+                    )
+
+                if attempt < max_retries - 1:
+                    wait_time = backoff_factor ** attempt
+                    await asyncio.sleep(wait_time)
+
+            except Exception as e:
+                last_exception = e
+                self.logger.error(f"Unexpected error: {e}")
+
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(backoff_factor ** attempt)
+
+        raise AutomationError(
+            f"Operation failed after {max_retries} attempts: {last_exception}",
+            ErrorSeverity.HIGH
+        )
+
+    def _classify_error(self, error: Exception) -> ErrorSeverity:
+        """Classify error severity."""
+        error_msg = str(error).lower()
+
+        if "memory" in error_msg or "crash" in error_msg:
+            return ErrorSeverity.CRITICAL
+        elif "timeout" in error_msg or "connection" in error_msg:
+            return ErrorSeverity.MEDIUM
+        else:
+            return ErrorSeverity.LOW
+
+# Usage
+error_handler = ErrorHandler()
+
+async def safe_automation_task():
+    async def task():
+        agent = Agent(task="Perform automation", llm=llm)
+        return await agent.run()
+
+    return await error_handler.handle_with_retry(task, max_retries=3)
+```
+</CodeGroup>
+
+## Performance Optimization
+
+### 1. Resource Management
+
+Optimize resource usage for scalable deployments:
+
+<CodeGroup>
+```python Session Pool Management
+import asyncio
+from typing import List, Optional
+from browser_use import BrowserSession, BrowserConfig
+import queue
+
+class BrowserSessionPool:
+    """Manage a pool of browser sessions for optimal resource usage."""
+
+    def __init__(self, pool_size: int = 5, config: Optional[BrowserConfig] = None):
+        self.pool_size = pool_size
+        self.config = config or BrowserConfig(headless=True)
+        self._available_sessions = queue.Queue(maxsize=pool_size)
+        self._all_sessions = []
+        self._initialized = False
+
+    async def initialize(self):
+        """Initialize the session pool."""
+        if self._initialized:
+            return
+
+        for i in range(self.pool_size):
+            session = BrowserSession(config=self.config)
+            await session.start()
+            self._available_sessions.put(session)
+            self._all_sessions.append(session)
+
+        self._initialized = True
+
+    async def acquire_session(self) -> BrowserSession:
+        """Acquire a session from the pool."""
+        if not self._initialized:
+            await self.initialize()
+
+        # Wait for available session
+        while self._available_sessions.empty():
+            await asyncio.sleep(0.1)
+
+        return self._available_sessions.get()
+
+    async def release_session(self, session: BrowserSession):
+        """Return a session to the pool."""
+        # Clean up session state
+        await self._cleanup_session(session)
+        self._available_sessions.put(session)
+
+    async def _cleanup_session(self, session: BrowserSession):
+        """Clean up session state before returning to pool."""
+        try:
+            # Close extra tabs, clear cookies, etc.
+            await session.close_other_tabs()
+            await session.clear_cookies()
+        except Exception as e:
+            logging.warning(f"Session cleanup warning: {e}")
+
+    async def shutdown(self):
+        """Shutdown all sessions in the pool."""
+        for session in self._all_sessions:
+            try:
+                await session.close()
+            except Exception as e:
+                logging.error(f"Error closing session: {e}")
+
+# Usage with context manager
+class PooledBrowserService:
+    def __init__(self, pool_size: int = 5):
+        self.pool = BrowserSessionPool(pool_size)
+
+    async def __aenter__(self):
+        await self.pool.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.pool.shutdown()
+
+    async def execute_task(self, task: str) -> dict:
+        session = await self.pool.acquire_session()
+        try:
+            agent = Agent(
+                task=task,
+                llm=llm,
+                browser_session=session
+            )
+            result = await agent.run()
+            return result
+        finally:
+            await self.pool.release_session(session)
+```
+</CodeGroup>
+
+### 2. Caching Strategies
+
+Implement intelligent caching to reduce redundant operations:
+
+<CodeGroup>
+```python Intelligent Caching
+import hashlib
+import json
+import asyncio
+from typing import Dict, Any, Optional
+from datetime import datetime, timedelta
+
+class CacheManager:
+    """Manage caching for browser automation results."""
+
+    def __init__(self, default_ttl: int = 3600):  # 1 hour default TTL
+        self.cache: Dict[str, Dict] = {}
+        self.default_ttl = default_ttl
+
+    def _generate_cache_key(self, task: str, url: Optional[str] = None) -> str:
+        """Generate a consistent cache key."""
+        key_data = {"task": task, "url": url}
+        key_string = json.dumps(key_data, sort_keys=True)
+        return hashlib.md5(key_string.encode()).hexdigest()
+
+    def get(self, task: str, url: Optional[str] = None) -> Optional[Any]:
+        """Get cached result if available and not expired."""
+        cache_key = self._generate_cache_key(task, url)
+
+        if cache_key not in self.cache:
+            return None
+
+        cached_item = self.cache[cache_key]
+        expiry_time = cached_item["expiry"]
+
+        if datetime.now() > expiry_time:
+            del self.cache[cache_key]
+            return None
+
+        return cached_item["data"]
+
+    def set(self, task: str, data: Any, url: Optional[str] = None, ttl: Optional[int] = None):
+        """Cache the result with TTL."""
+        cache_key = self._generate_cache_key(task, url)
+        ttl = ttl or self.default_ttl
+
+        self.cache[cache_key] = {
+            "data": data,
+            "expiry": datetime.now() + timedelta(seconds=ttl),
+            "created": datetime.now()
+        }
+
+    def clear_expired(self):
+        """Remove expired cache entries."""
+        now = datetime.now()
+        expired_keys = [
+            key for key, item in self.cache.items()
+            if now > item["expiry"]
+        ]
+
+        for key in expired_keys:
+            del self.cache[key]
+
+class CachedAutomationService:
+    """Automation service with intelligent caching."""
+
+    def __init__(self):
+        self.cache = CacheManager()
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
+
+    async def execute_with_cache(self, task: str, url: Optional[str] = None, force_refresh: bool = False) -> Dict:
+        """Execute task with caching support."""
+
+        # Check cache first (unless force refresh)
+        if not force_refresh:
+            cached_result = self.cache.get(task, url)
+            if cached_result:
+                return {
+                    "result": cached_result,
+                    "from_cache": True,
+                    "cache_hit": True
+                }
+
+        # Execute the task
+        agent = Agent(task=task, llm=self.llm)
+        result = await agent.run()
+
+        # Cache successful results
+        if result.success:
+            # Cache for longer if it's static content
+            ttl = self._determine_cache_ttl(task, url)
+            self.cache.set(task, result.final_result, url, ttl)
+
+        return {
+            "result": result.final_result,
+            "from_cache": False,
+            "success": result.success
+        }
+
+    def _determine_cache_ttl(self, task: str, url: Optional[str] = None) -> int:
+        """Determine appropriate cache TTL based on task type."""
+        task_lower = task.lower()
+
+        # Static content - cache longer
+        if any(keyword in task_lower for keyword in ["price", "product", "review"]):
+            return 1800  # 30 minutes
+
+        # Dynamic content - shorter cache
+        elif any(keyword in task_lower for keyword in ["news", "stock", "weather"]):
+            return 300   # 5 minutes
+
+        # Default
+        return 3600  # 1 hour
+```
+</CodeGroup>
+
+### 3. Concurrent Execution
+
+Safely manage concurrent browser sessions:
+
+<CodeGroup>
+```python Safe Concurrent Execution
+import asyncio
+from typing import List, Dict, Callable, Any
+from browser_use import Agent, ChatOpenAI
+
+class ConcurrentAutomationManager:
+    """Manage concurrent browser automation tasks safely."""
+
+    def __init__(self, max_concurrent: int = 5):
+        self.max_concurrent = max_concurrent
+        self.semaphore = asyncio.Semaphore(max_concurrent)
+        self.active_tasks = set()
+
+    async def execute_batch(self, tasks: List[Dict[str, Any]]) -> List[Dict]:
+        """Execute multiple tasks concurrently with resource limits."""
+
+        async def execute_single_task(task_config: Dict[str, Any]):
+            async with self.semaphore:
+                task_id = task_config.get("id", "unknown")
+                self.active_tasks.add(task_id)
+
+                try:
+                    agent = Agent(
+                        task=task_config["task"],
+                        llm=ChatOpenAI(model="gpt-4o-mini"),
+                        max_steps=task_config.get("max_steps", 50)
+                    )
+
+                    result = await agent.run()
+
+                    return {
+                        "task_id": task_id,
+                        "success": result.success,
+                        "result": result.final_result,
+                        "execution_time": result.execution_time_seconds
+                    }
+
+                except Exception as e:
+                    return {
+                        "task_id": task_id,
+                        "success": False,
+                        "error": str(e)
+                    }
+                finally:
+                    self.active_tasks.discard(task_id)
+
+        # Execute all tasks concurrently
+        results = await asyncio.gather(*[
+            execute_single_task(task) for task in tasks
+        ], return_exceptions=True)
+
+        # Handle any exceptions
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                processed_results.append({
+                    "task_id": tasks[i].get("id", f"task_{i}"),
+                    "success": False,
+                    "error": str(result)
+                })
+            else:
+                processed_results.append(result)
+
+        return processed_results
+
+    async def monitor_progress(self, callback: Callable[[Dict], None]):
+        """Monitor execution progress."""
+        while self.active_tasks:
+            progress_info = {
+                "active_tasks": len(self.active_tasks),
+                "task_ids": list(self.active_tasks)
+            }
+            callback(progress_info)
+            await asyncio.sleep(1)
+
+# Usage
+async def main():
+    manager = ConcurrentAutomationManager(max_concurrent=3)
+
+    tasks = [
+        {"id": "task_1", "task": "Extract data from site1.com", "max_steps": 30},
+        {"id": "task_2", "task": "Extract data from site2.com", "max_steps": 40},
+        {"id": "task_3", "task": "Extract data from site3.com", "max_steps": 25},
+    ]
+
+    # Monitor progress
+    def progress_callback(info):
+        print(f"Active tasks: {info['active_tasks']}")
+
+    # Start monitoring in background
+    monitor_task = asyncio.create_task(
+        manager.monitor_progress(progress_callback)
+    )
+
+    # Execute tasks
+    results = await manager.execute_batch(tasks)
+
+    # Stop monitoring
+    monitor_task.cancel()
+
+    for result in results:
+        print(f"Task {result['task_id']}: {'SUCCESS' if result['success'] else 'FAILED'}")
+```
+</CodeGroup>
+
+## Security Best Practices
+
+### 1. Input Validation and Sanitization
+
+Protect against injection attacks and malicious inputs:
+
+<CodeGroup>
+```python Input Validation
+import re
+from typing import List, Dict, Any
+from urllib.parse import urlparse
+
+class InputValidator:
+    """Validate and sanitize inputs for browser automation."""
+
+    @staticmethod
+    def validate_url(url: str) -> bool:
+        """Validate URL format and safety."""
+        try:
+            parsed = urlparse(url)
+            return all([
+                parsed.scheme in ['http', 'https'],
+                parsed.netloc,
+                not any(char in url for char in ['<', '>', '"', "'"])
+            ])
+        except Exception:
+            return False
+
+    @staticmethod
+    def validate_task_description(task: str) -> bool:
+        """Validate task description for safety."""
+        # Check for malicious patterns
+        malicious_patterns = [
+            r'<script',
+            r'javascript:',
+            r'eval\(',
+            r'document\.cookie',
+            r'localStorage\.clear'
+        ]
+
+        for pattern in malicious_patterns:
+            if re.search(pattern, task, re.IGNORECASE):
+                return False
+
+        return len(task) <= 2000  # Reasonable length limit
+
+    @staticmethod
+    def sanitize_form_data(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Sanitize form data before submission."""
+        sanitized = {}
+
+        for key, value in data.items():
+            if isinstance(value, str):
+                # Remove potential script tags and dangerous characters
+                sanitized_value = re.sub(r'<[^>]*>', '', value)
+                sanitized_value = sanitized_value.replace('"', '&quot;')
+                sanitized_value = sanitized_value.replace("'", '&#x27;')
+                sanitized[key] = sanitized_value
+            else:
+                sanitized[key] = value
+
+        return sanitized
+
+class SecureAutomationService:
+    """Secure automation service with input validation."""
+
+    def __init__(self):
+        self.validator = InputValidator()
+        self.allowed_domains = set()  # Configure allowed domains
+
+    def add_allowed_domain(self, domain: str):
+        """Add domain to allowlist."""
+        self.allowed_domains.add(domain.lower())
+
+    async def secure_execute(self, task: str, url: str = None) -> Dict:
+        """Execute automation with security validation."""
+
+        # Validate inputs
+        if not self.validator.validate_task_description(task):
+            raise ValueError("Invalid or potentially malicious task description")
+
+        if url and not self.validator.validate_url(url):
+            raise ValueError("Invalid URL format")
+
+        if url and self.allowed_domains:
+            domain = urlparse(url).netloc.lower()
+            if not any(domain.endswith(allowed) for allowed in self.allowed_domains):
+                raise ValueError(f"Domain {domain} not in allowlist")
+
+        # Execute with validated inputs
+        agent = Agent(
+            task=task,
+            llm=ChatOpenAI(model="gpt-4o-mini"),
+            browser_config=BrowserConfig(
+                stealth_mode=True,
+                disable_security=False  # Keep security enabled
+            )
+        )
+
+        return await agent.run()
+```
+</CodeGroup>
+
+### 2. Secrets Management
+
+Secure handling of API keys and sensitive data:
+
+<CodeGroup>
+```python Secure Secrets Management
+import os
+from typing import Optional
+from cryptography.fernet import Fernet
+import base64
+
+class SecretsManager:
+    """Secure management of API keys and sensitive data."""
+
+    def __init__(self):
+        self.encryption_key = self._get_or_create_key()
+        self.cipher_suite = Fernet(self.encryption_key)
+
+    def _get_or_create_key(self) -> bytes:
+        """Get encryption key from environment or create new one."""
+        key_env = os.getenv('AUTOMATION_ENCRYPTION_KEY')
+
+        if key_env:
+            return base64.urlsafe_b64decode(key_env.encode())
+        else:
+            # Generate new key (save this securely!)
+            key = Fernet.generate_key()
+            print(f"Generated new encryption key: {base64.urlsafe_b64encode(key).decode()}")
+            return key
+
+    def encrypt_secret(self, secret: str) -> str:
+        """Encrypt a secret value."""
+        encrypted = self.cipher_suite.encrypt(secret.encode())
+        return base64.urlsafe_b64encode(encrypted).decode()
+
+    def decrypt_secret(self, encrypted_secret: str) -> str:
+        """Decrypt a secret value."""
+        encrypted_bytes = base64.urlsafe_b64decode(encrypted_secret.encode())
+        decrypted = self.cipher_suite.decrypt(encrypted_bytes)
+        return decrypted.decode()
+
+    def get_api_key(self, provider: str) -> Optional[str]:
+        """Get API key for LLM provider."""
+        # Try environment variable first
+        env_key = f"{provider.upper()}_API_KEY"
+        api_key = os.getenv(env_key)
+
+        if api_key:
+            return api_key
+
+        # Try encrypted storage
+        encrypted_key = os.getenv(f"{env_key}_ENCRYPTED")
+        if encrypted_key:
+            return self.decrypt_secret(encrypted_key)
+
+        return None
+
+# Usage
+secrets_manager = SecretsManager()
+
+# Secure LLM initialization
+def create_secure_llm(provider: str = "openai"):
+    api_key = secrets_manager.get_api_key(provider)
+    if not api_key:
+        raise ValueError(f"No API key found for {provider}")
+
+    return ChatOpenAI(api_key=api_key, model="gpt-4o-mini")
+```
+</CodeGroup>
+
+### 3. Session Security
+
+Implement secure session management:
+
+<CodeGroup>
+```python Secure Session Management
+from browser_use import BrowserConfig
+import tempfile
+import shutil
+from pathlib import Path
+
+class SecureSessionManager:
+    """Manage browser sessions with security best practices."""
+
+    def __init__(self):
+        self.temp_profiles = []
+
+    def create_isolated_session(self) -> BrowserConfig:
+        """Create an isolated browser session with temporary profile."""
+
+        # Create temporary profile directory
+        temp_profile = tempfile.mkdtemp(prefix="browser_automation_")
+        self.temp_profiles.append(temp_profile)
+
+        config = BrowserConfig(
+            user_data_dir=temp_profile,
+            headless=True,
+            chrome_args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-extensions",
+                "--disable-plugins",
+                "--disable-images",  # Don't load images for security
+                "--disable-javascript",  # Disable if not needed
+                "--disable-web-security",  # Only if necessary
+                "--incognito"  # Private browsing mode
+            ]
+        )
+
+        return config
+
+    def cleanup_all_sessions(self):
+        """Clean up all temporary profiles."""
+        for profile_path in self.temp_profiles:
+            try:
+                shutil.rmtree(profile_path)
+            except Exception as e:
+                print(f"Warning: Could not clean up {profile_path}: {e}")
+
+        self.temp_profiles.clear()
+
+    def __del__(self):
+        """Cleanup on object destruction."""
+        self.cleanup_all_sessions()
+
+# Usage as context manager
+class SecureBrowserAutomation:
+    def __init__(self):
+        self.session_manager = SecureSessionManager()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.session_manager.cleanup_all_sessions()
+
+    async def execute_secure_task(self, task: str) -> dict:
+        """Execute task in isolated session."""
+        config = self.session_manager.create_isolated_session()
+
+        agent = Agent(
+            task=task,
+            llm=create_secure_llm(),
+            browser_config=config
+        )
+
+        return await agent.run()
+```
+</CodeGroup>
+
+## Monitoring and Observability
+
+### 1. Comprehensive Logging
+
+Implement structured logging for debugging and monitoring:
+
+<CodeGroup>
+```python Structured Logging
+import logging
+import json
+from datetime import datetime
+from typing import Dict, Any
+
+class StructuredLogger:
+    """Structured logging for browser automation."""
+
+    def __init__(self, service_name: str):
+        self.service_name = service_name
+        self.logger = logging.getLogger(service_name)
+        self._setup_logger()
+
+    def _setup_logger(self):
+        """Set up structured logging."""
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
+        self.logger.setLevel(logging.INFO)
+
+    def log_task_start(self, task_id: str, task_description: str, metadata: Dict[str, Any] = None):
+        """Log task start."""
+        log_data = {
+            "event": "task_start",
+            "task_id": task_id,
+            "task_description": task_description,
+            "timestamp": datetime.now().isoformat(),
+            "service": self.service_name
+        }
+
+        if metadata:
+            log_data["metadata"] = metadata
+
+        self.logger.info(json.dumps(log_data))
+
+    def log_task_completion(self, task_id: str, success: bool, execution_time: float, metadata: Dict[str, Any] = None):
+        """Log task completion."""
+        log_data = {
+            "event": "task_completion",
+            "task_id": task_id,
+            "success": success,
+            "execution_time_seconds": execution_time,
+            "timestamp": datetime.now().isoformat(),
+            "service": self.service_name
+        }
+
+        if metadata:
+            log_data["metadata"] = metadata
+
+        if success:
+            self.logger.info(json.dumps(log_data))
+        else:
+            self.logger.error(json.dumps(log_data))
+
+    def log_performance_metrics(self, metrics: Dict[str, Any]):
+        """Log performance metrics."""
+        log_data = {
+            "event": "performance_metrics",
+            "metrics": metrics,
+            "timestamp": datetime.now().isoformat(),
+            "service": self.service_name
+        }
+
+        self.logger.info(json.dumps(log_data))
+
+class InstrumentedAutomationService:
+    """Automation service with comprehensive instrumentation."""
+
+    def __init__(self, service_name: str):
+        self.logger = StructuredLogger(service_name)
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
+
+    async def execute_instrumented_task(self, task_id: str, task: str) -> Dict:
+        """Execute task with full instrumentation."""
+
+        start_time = time.time()
+
+        # Log task start
+        self.logger.log_task_start(task_id, task)
+
+        try:
+            agent = Agent(task=task, llm=self.llm)
+            result = await agent.run()
+
+            execution_time = time.time() - start_time
+
+            # Log completion
+            self.logger.log_task_completion(
+                task_id,
+                result.success,
+                execution_time,
+                metadata={
+                    "steps_taken": result.steps_taken,
+                    "files_created": len(result.files_created) if result.files_created else 0
+                }
+            )
+
+            return {
+                "task_id": task_id,
+                "success": result.success,
+                "result": result.final_result,
+                "execution_time": execution_time
+            }
+
+        except Exception as e:
+            execution_time = time.time() - start_time
+
+            self.logger.log_task_completion(
+                task_id,
+                False,
+                execution_time,
+                metadata={"error": str(e)}
+            )
+
+            raise
+```
+</CodeGroup>
+
+### 2. Health Checks and Monitoring
+
+Implement health checks for production deployments:
+
+<CodeGroup>
+```python Health Check System
+import asyncio
+import time
+from typing import Dict, List
+from enum import Enum
+
+class HealthStatus(Enum):
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    UNHEALTHY = "unhealthy"
+
+class HealthChecker:
+    """Comprehensive health checking for browser automation service."""
+
+    def __init__(self):
+        self.checks = []
+        self.last_check_time = None
+        self.last_status = HealthStatus.HEALTHY
+
+    def register_check(self, name: str, check_func, critical: bool = False):
+        """Register a health check."""
+        self.checks.append({
+            "name": name,
+            "func": check_func,
+            "critical": critical
+        })
+
+    async def run_health_checks(self) -> Dict:
+        """Run all registered health checks."""
+        results = []
+        overall_status = HealthStatus.HEALTHY
+        critical_failures = 0
+
+        for check in self.checks:
+            start_time = time.time()
+
+            try:
+                result = await check["func"]()
+                execution_time = time.time() - start_time
+
+                check_result = {
+                    "name": check["name"],
+                    "status": HealthStatus.HEALTHY.value,
+                    "execution_time": execution_time,
+                    "critical": check["critical"]
+                }
+
+                results.append(check_result)
+
+            except Exception as e:
+                execution_time = time.time() - start_time
+
+                check_result = {
+                    "name": check["name"],
+                    "status": HealthStatus.UNHEALTHY.value,
+                    "error": str(e),
+                    "execution_time": execution_time,
+                    "critical": check["critical"]
+                }
+
+                results.append(check_result)
+
+                if check["critical"]:
+                    critical_failures += 1
+                    overall_status = HealthStatus.UNHEALTHY
+                elif overall_status == HealthStatus.HEALTHY:
+                    overall_status = HealthStatus.DEGRADED
+
+        self.last_check_time = time.time()
+        self.last_status = overall_status
+
+        return {
+            "status": overall_status.value,
+            "timestamp": time.time(),
+            "checks": results,
+            "critical_failures": critical_failures
+        }
+
+# Specific health checks
+async def browser_startup_check():
+    """Check if browser can start successfully."""
+    config = BrowserConfig(headless=True)
+    session = BrowserSession(config=config)
+
+    try:
+        await session.start()
+        return True
+    finally:
+        await session.close()
+
+async def llm_connectivity_check():
+    """Check LLM connectivity."""
+    llm = ChatOpenAI(model="gpt-4o-mini")
+    response = await llm.ainvoke([{"role": "user", "content": "Health check"}])
+    return len(response.content) > 0
+
+async def system_resources_check():
+    """Check system resource availability."""
+    import psutil
+
+    memory = psutil.virtual_memory()
+    disk = psutil.disk_usage('/')
+
+    if memory.percent > 90:
+        raise Exception(f"High memory usage: {memory.percent}%")
+
+    if disk.percent > 90:
+        raise Exception(f"High disk usage: {disk.percent}%")
+
+    return True
+
+# Setup health checker
+health_checker = HealthChecker()
+health_checker.register_check("browser_startup", browser_startup_check, critical=True)
+health_checker.register_check("llm_connectivity", llm_connectivity_check, critical=True)
+health_checker.register_check("system_resources", system_resources_check, critical=False)
+
+# Health check endpoint (for web frameworks)
+async def health_endpoint():
+    """Health check endpoint for HTTP services."""
+    return await health_checker.run_health_checks()
+```
+</CodeGroup>
+
+## Testing Best Practices
+
+### 1. Comprehensive Test Strategy
+
+Implement multiple layers of testing:
+
+<CodeGroup>
+```python Multi-Layer Testing
+import pytest
+import asyncio
+from unittest.mock import Mock, patch
+from browser_use import Agent, ChatOpenAI
+
+class TestBrowserAutomation:
+    """Comprehensive test suite for browser automation."""
+
+    @pytest.fixture
+    async def mock_llm(self):
+        """Mock LLM for unit tests."""
+        mock = Mock(spec=ChatOpenAI)
+        mock.ainvoke.return_value = Mock(content="Mock response")
+        return mock
+
+    @pytest.fixture
+    async def test_config(self):
+        """Test browser configuration."""
+        return BrowserConfig(
+            headless=True,
+            chrome_args=["--no-sandbox", "--disable-dev-shm-usage"]
+        )
+
+    # Unit Tests
+    async def test_task_validation(self):
+        """Test task input validation."""
+        validator = InputValidator()
+
+        assert validator.validate_task_description("Valid task description")
+        assert not validator.validate_task_description("<script>alert('xss')</script>")
+        assert not validator.validate_task_description("x" * 3000)  # Too long
+
+    async def test_url_validation(self):
+        """Test URL validation."""
+        validator = InputValidator()
+
+        assert validator.validate_url("https://example.com")
+        assert validator.validate_url("http://example.com")
+        assert not validator.validate_url("javascript:alert('xss')")
+        assert not validator.validate_url("ftp://example.com")
+
+    # Integration Tests
+    @pytest.mark.integration
+    async def test_browser_session_lifecycle(self, test_config):
+        """Test browser session creation and cleanup."""
+        session = BrowserSession(config=test_config)
+
+        try:
+            await session.start()
+            assert session.is_active()
+
+            # Test basic navigation
+            await session.navigate("https://example.com")
+            current_url = await session.get_current_url()
+            assert "example.com" in current_url
+
+        finally:
+            await session.close()
+            assert not session.is_active()
+
+    @pytest.mark.integration
+    async def test_agent_execution_flow(self, mock_llm, test_config):
+        """Test complete agent execution flow."""
+        agent = Agent(
+            task="Navigate to example.com and get page title",
+            llm=mock_llm,
+            browser_config=test_config
+        )
+
+        result = await agent.run()
+        assert result.success
+        assert result.steps_taken > 0
+
+    # End-to-End Tests
+    @pytest.mark.e2e
+    async def test_real_world_scenario(self):
+        """Test real-world automation scenario."""
+        agent = Agent(
+            task="Go to httpbin.org and test the /get endpoint",
+            llm=ChatOpenAI(model="gpt-4o-mini"),
+            browser_config=BrowserConfig(headless=True)
+        )
+
+        result = await agent.run()
+        assert result.success
+        assert "httpbin" in result.final_result.lower()
+
+    # Performance Tests
+    @pytest.mark.performance
+    async def test_concurrent_execution_performance(self, test_config):
+        """Test performance under concurrent load."""
+        tasks = [
+            f"Navigate to httpbin.org/delay/{i}" for i in range(1, 4)
+        ]
+
+        start_time = time.time()
+
+        # Execute tasks concurrently
+        results = await asyncio.gather(*[
+            Agent(
+                task=task,
+                llm=ChatOpenAI(model="gpt-4o-mini"),
+                browser_config=test_config
+            ).run()
+            for task in tasks
+        ])
+
+        execution_time = time.time() - start_time
+
+        # Verify all tasks completed
+        assert all(result.success for result in results)
+
+        # Verify concurrent execution was faster than sequential
+        assert execution_time < 10  # Adjust based on expected performance
+
+    # Error Handling Tests
+    @pytest.mark.error_handling
+    async def test_invalid_url_handling(self, test_config):
+        """Test handling of invalid URLs."""
+        agent = Agent(
+            task="Navigate to invalid-url-that-does-not-exist.com",
+            llm=ChatOpenAI(model="gpt-4o-mini"),
+            browser_config=test_config,
+            max_steps=5
+        )
+
+        result = await agent.run()
+        # Should fail gracefully without crashing
+        assert not result.success
+        assert result.error is not None
+
+# Run tests with different markers
+# pytest -m unit
+# pytest -m integration
+# pytest -m e2e
+# pytest -m performance
+```
+</CodeGroup>
+
+## Documentation and Maintenance
+
+### 1. Code Documentation
+
+Maintain comprehensive documentation:
+
+<CodeGroup>
+```python Comprehensive Documentation
+from typing import Dict, List, Optional, Union
+from browser_use import Agent, BrowserConfig
+import asyncio
+
+class DocumentedAutomationService:
+    """
+    Comprehensive browser automation service with full documentation.
+
+    This service provides high-level browser automation capabilities with
+    built-in error handling, logging, and performance optimization.
+
+    Attributes:
+        config (BrowserConfig): Browser configuration settings
+        llm (ChatOpenAI): Language model for task execution
+        logger (StructuredLogger): Structured logging instance
+        session_pool (BrowserSessionPool): Managed session pool
+
+    Example:
+        >>> service = DocumentedAutomationService()
+        >>> result = await service.execute_task(
+        ...     "Extract product information from example-store.com"
+        ... )
+        >>> print(result['success'])
+        True
+    """
+
+    def __init__(self, config: Optional[BrowserConfig] = None):
+        """
+        Initialize the automation service.
+
+        Args:
+            config: Optional browser configuration. If None, uses default settings.
+
+        Raises:
+            ValueError: If configuration validation fails
+            ConnectionError: If LLM service is unavailable
+        """
+        self.config = config or self._get_default_config()
+        self.llm = self._initialize_llm()
+        self.logger = StructuredLogger("automation_service")
+
+    async def execute_task(self,
+                          task_description: str,
+                          target_url: Optional[str] = None,
+                          max_steps: int = 50,
+                          timeout_seconds: int = 120) -> Dict[str, Union[bool, str, int]]:
+        """
+        Execute a browser automation task.
+
+        Args:
+            task_description: Natural language description of the task to perform.
+                            Must be specific and actionable.
+            target_url: Optional starting URL for the task. If None, agent will
+                       determine appropriate starting point.
+            max_steps: Maximum number of actions the agent can take (default: 50).
+                      Higher values allow more complex tasks but increase execution time.
+            timeout_seconds: Maximum execution time in seconds (default: 120).
+
+        Returns:
+            Dictionary containing:
+                - success (bool): Whether the task completed successfully
+                - result (str): Task execution result or error message
+                - steps_taken (int): Number of actions performed
+                - execution_time (float): Time taken in seconds
+                - metadata (dict): Additional execution information
+
+        Raises:
+            ValueError: If task_description is invalid or unsafe
+            TimeoutError: If execution exceeds timeout_seconds
+            BrowserError: If browser operation fails critically
+
+        Example:
+            >>> result = await service.execute_task(
+            ...     "Find the price of the most popular laptop",
+            ...     target_url="https://electronics-store.com",
+            ...     max_steps=30
+            ... )
+            >>> if result['success']:
+            ...     print(f"Found price: {result['result']}")
+        """
+        # Implementation with comprehensive error handling and logging
+        pass
+
+    def _get_default_config(self) -> BrowserConfig:
+        """
+        Get default browser configuration optimized for most use cases.
+
+        Returns:
+            BrowserConfig: Optimized configuration with stealth mode,
+                          appropriate timeouts, and security settings.
+        """
+        return BrowserConfig(
+            headless=True,
+            stealth_mode=True,
+            viewport_width=1920,
+            viewport_height=1080,
+            timeout=30000,
+            chrome_args=[
+                "--no-sandbox",
+                "--disable-dev-shm-usage"
+            ]
+        )
+```
+</CodeGroup>
+
+### 2. Change Management
+
+Implement proper versioning and change tracking:
+
+<CodeGroup>
+```python Version Management
+from typing import Dict, Any
+import json
+from datetime import datetime
+
+class AutomationServiceVersionManager:
+    """
+    Manage versions and changes in automation service.
+
+    This ensures backward compatibility and tracks changes
+    for debugging and rollback purposes.
+    """
+
+    CURRENT_VERSION = "2.1.0"
+    API_COMPATIBILITY_MATRIX = {
+        "2.1.0": ["2.0.0", "2.1.0"],
+        "2.0.0": ["2.0.0"],
+        "1.9.0": ["1.9.0"]
+    }
+
+    @classmethod
+    def is_compatible(cls, client_version: str) -> bool:
+        """Check if client version is compatible with current service."""
+        return client_version in cls.API_COMPATIBILITY_MATRIX.get(cls.CURRENT_VERSION, [])
+
+    @classmethod
+    def get_migration_guide(cls, from_version: str) -> Dict[str, Any]:
+        """Get migration guide for version upgrade."""
+        migration_guides = {
+            "1.9.0_to_2.0.0": {
+                "breaking_changes": [
+                    "BrowserConfig.timeout now in milliseconds (was seconds)",
+                    "Agent.run() now returns AgentResult object (was dict)"
+                ],
+                "new_features": [
+                    "Added session pooling support",
+                    "Enhanced error handling with recovery"
+                ],
+                "migration_steps": [
+                    "Update timeout values: multiply by 1000",
+                    "Update result handling: use result.success instead of result['success']"
+                ]
+            }
+        }
+
+        migration_key = f"{from_version}_to_{cls.CURRENT_VERSION}"
+        return migration_guides.get(migration_key, {})
+
+    @classmethod
+    def log_version_info(cls, logger):
+        """Log version and compatibility information."""
+        logger.info(f"Automation Service Version: {cls.CURRENT_VERSION}")
+        logger.info(f"Compatible client versions: {cls.API_COMPATIBILITY_MATRIX[cls.CURRENT_VERSION]}")
+```
+</CodeGroup>
+
+These comprehensive best practices provide a solid foundation for building production-ready browser automation systems that are secure, performant, maintainable, and scalable.
